@@ -62,8 +62,8 @@ class MultiVAE(torch.nn.Module):
         out_logstd = torch.cat(out_logstd, dim=1)
         return mu, logstd, out_mu, out_logstd
 
-    def loss(self, x):
-        z_mu, z_logstd, o_mu, o_logstd = self.forward(x)
+    def loss(self, x, sample=True):
+        z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
         z_std = torch.exp(z_logstd)
         z_dist = torch.distributions.Normal(z_mu, z_std)
         kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
