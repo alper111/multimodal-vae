@@ -1,0 +1,7 @@
+.DS_Store
+out/*
+data/*
+save/*
+runs/*
+.vscode/*
+setup.cfg
