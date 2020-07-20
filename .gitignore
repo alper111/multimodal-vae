@@ -5,3 +5,4 @@ save/*
 runs/*
 .vscode/*
 setup.cfg
+__pycache__/*
