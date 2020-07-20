@@ -4,13 +4,13 @@ import os
 
 
 class MultiVAE(torch.nn.Module):
-    def __init__(self, in_blocks, in_shared, out_shared, out_blocks):
+    def __init__(self, in_blocks, in_shared, out_shared, out_blocks, init="xavier"):
         super(MultiVAE, self).__init__()
         self.in_models = []
         self.in_slice = []
         self.out_slice = []
         for block in in_blocks:
-            mlp = MLP(block)
+            mlp = MLP(block, init=init)
             last_idx = str(len(mlp.layers))
             mlp.layers.add_module(last_idx, torch.nn.ReLU())
             self.in_models.append(mlp)
@@ -20,12 +20,12 @@ class MultiVAE(torch.nn.Module):
 
         self.out_models = []
         for block in out_blocks:
-            mlp = MLP(block)
+            mlp = MLP(block, init=init)
             self.out_models.append(mlp)
         self.out_models = torch.nn.ModuleList(self.out_models)
 
-        self.encoder = MLP(in_shared)
-        self.decoder = MLP(out_shared)
+        self.encoder = MLP(in_shared, init=init)
+        self.decoder = MLP(out_shared, init=init)
         self.z_d = in_shared[-1]//2
         self.prior = torch.distributions.Normal(torch.tensor(0.0), torch.tensor(1.0))
 
@@ -75,7 +75,7 @@ class MultiVAE(torch.nn.Module):
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, layer_info, activation="relu"):
+    def __init__(self, layer_info, activation="relu", init="he"):
         super(MLP, self).__init__()
 
         if activation == "relu":
@@ -83,14 +83,18 @@ class MLP(torch.nn.Module):
         elif activation == "tanh":
             func = torch.nn.Tanh()
 
+        if init == "xavier":
+            gain = 1.0
+        else:
+            gain = torch.nn.init.calculate_gain(activation)
+
         layers = []
         in_dim = layer_info[0]
         for i, unit in enumerate(layer_info[1:-1]):
-            gain = torch.nn.init.calculate_gain(activation)
-            layers.append(Linear(in_features=in_dim, out_features=unit, gain=gain))
+            layers.append(Linear(in_features=in_dim, out_features=unit, gain=gain, init=init))
             layers.append(func)
             in_dim = unit
-        layers.append(Linear(in_features=in_dim, out_features=layer_info[-1]))
+        layers.append(Linear(in_features=in_dim, out_features=layer_info[-1], gain=1.0, init=init))
         self.layers = torch.nn.Sequential(*layers)
 
     def forward(self, x):
