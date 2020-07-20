@@ -73,13 +73,17 @@ class MultiVAE(torch.nn.Module):
         recon_loss = (-o_dist.log_prob(y).sum(dim=1).mean())
         return lambd * recon_loss + beta * kl_loss
 
-    def mse_loss(self, x, y, sample=True, lambd=1.0, beta=1.0):
+    def mse_loss(self, x, y, sample=True, lambd=1.0, beta=1.0, reduce=False):
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
         z_std = torch.exp(z_logstd)
         z_dist = torch.distributions.Normal(z_mu, z_std)
-        kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
+        if reduce:
+            kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).mean()
+            recon_loss = torch.nn.functional.mse_loss(o_mu, y, reduction="none").mean()
+        else:
+            kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
+            recon_loss = torch.nn.functional.mse_loss(o_mu, y, reduction="none").sum(dim=1).mean()
 
-        recon_loss = torch.nn.functional.mse_loss(o_mu, y, reduction="none").sum(dim=1).mean()
         return lambd * recon_loss + beta * kl_loss
 
 
