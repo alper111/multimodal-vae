@@ -15,14 +15,14 @@ if os.path.exists(logdir):
     os.system("rm -rf %s" % logdir)
 writer = SummaryWriter(logdir)
 
-x_train = torch.tensor(np.load("data/train.npy"), dtype=torch.float)
-x_test = torch.tensor(np.load("data/test.npy"), dtype=torch.float)
+x_train = torch.tensor(np.load("data/train.npy"), dtype=torch.float, device=device)
+x_test = torch.tensor(np.load("data/test.npy"), dtype=torch.float, device=device)
 idx = int(0.8 * x_train.shape[0])
 x_train, x_val = x_train[:idx], x_train[idx:]
 
 train_set = torch.utils.data.TensorDataset(x_train)
 loader = torch.utils.data.DataLoader(train_set, batch_size=100, shuffle=True)
-epoch = 200
+epoch = 2000
 
 in_blocks = [
     [8, 40, 20],
@@ -40,8 +40,10 @@ out_blocks = [
 ]
 in_shared = [70, 100, 56]
 out_shared = [28, 100, 70]
-model = models.MultiVAE(in_blocks=in_blocks, in_shared=in_shared, out_shared=out_shared, out_blocks=out_blocks)
+model = models.MultiVAE(in_blocks=in_blocks, in_shared=in_shared, out_shared=out_shared, out_blocks=out_blocks, init="xavier")
+model.to(device)
 optimizer = torch.optim.Adam(lr=1e-4, params=model.parameters(), amsgrad=True)
+print(model)
 
 for e in range(epoch):
     running_avg = 0.0
