@@ -10,7 +10,8 @@ if torch.cuda.is_available():
 else:
     device = "cpu"
 
-logdir = "runs/run-1"
+run_name = "run-5"
+logdir = os.path.join("runs", run_name)
 if os.path.exists(logdir):
     os.system("rm -rf %s" % logdir)
 writer = SummaryWriter(logdir)
@@ -63,3 +64,5 @@ for e in range(epoch):
     print("Epoch loss: %.3f" % running_avg)
     print("MSE train: %.3f" % mse_train)
     print("MSE validation: %.3f" % mse_val)
+
+model.save(os.path.join("save", run_name), "multivae")
