@@ -86,6 +86,17 @@ class MultiVAE(torch.nn.Module):
 
         return lambd * recon_loss + beta * kl_loss
 
+    def load(self, path, name):
+        state_dict = torch.load(os.path.join(path, name+".ckpt"))
+        self.load_state_dict(state_dict)
+
+    def save(self, path, name):
+        dv = self.encoder.layers[-1].weight.device
+        if not os.path.exists(path):
+            os.makedirs(path)
+        torch.save(self.eval().cpu().state_dict(), os.path.join(path, name+".ckpt"))
+        self.train().to(dv)
+
 
 class MLP(torch.nn.Module):
     def __init__(self, layer_info, activation="relu", init="he"):
@@ -121,7 +132,7 @@ class MLP(torch.nn.Module):
         dv = self.layers[-1].weight.device
         if not os.path.exists(path):
             os.makedirs(path)
-        torch.save(self.cpu().state_dict(), os.path.join(path, name+".ckpt"))
+        torch.save(self.eval().cpu().state_dict(), os.path.join(path, name+".ckpt"))
         self.train().to(dv)
 
 
