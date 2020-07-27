@@ -1,3 +1,4 @@
+"""Test multimodal VAE and print Figure 4."""
 import os
 import torch
 import numpy as np

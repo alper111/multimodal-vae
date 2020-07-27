@@ -1,10 +1,31 @@
+"""MultiVAE and other models."""
 import torch
 import math
 import os
 
 
 class MultiVAE(torch.nn.Module):
+    """Multimodal variational autoencoder."""
+
     def __init__(self, in_blocks, in_shared, out_shared, out_blocks, init="xavier"):
+        """Initialize a multimodal VAE instance.
+
+        Parameters
+        ----------
+        in_blocks : list of list of int
+            Encoder MLPs for different modalities. Each list specifies
+            an MLP's units (including input layer).
+        in_shared : list of int
+            Shared encoder's units (including input layer).
+        out_shared : list of int
+            Shared decoder's units (including input layer).
+        out_blocks : list of list of int
+            Decoder MLPs for different modalities. Each list specifies
+            an MLP's units (including input layer). As decoders predict
+            mean and standard deviation, output dimension should be doubled.
+        init : "xavier" or "he"
+            Initialization technique.
+        """
         super(MultiVAE, self).__init__()
         self.in_models = []
         self.in_slice = []
@@ -30,6 +51,31 @@ class MultiVAE(torch.nn.Module):
         self.prior = torch.distributions.Normal(torch.tensor(0.0), torch.tensor(1.0))
 
     def forward(self, x, sample=True):
+        """Forward pass.
+
+        N -> number of samples.
+        D -> input dimension.
+        D_z -> latent dimension.
+
+        Parameters
+        ----------
+        x : torch.tensor (N by D)
+            Input tensor.
+        sample : bool
+            Sampling is done from the latent distribution if set true.
+            Otherwise mean of the distribution is used.
+
+        Returns
+        -------
+        mu : torch.tensor (N by D_z)
+            Mean of the latent distribution.
+        logstd : torch.tensor (N by D_z)
+            Log standard deviation of the latent distribution.
+        out_mu : torch.tensor (N by D)
+            Mean of the output distribution.
+        out_logstd : torch.tensor (N by D)
+            Log standard deviation of the output distribution.
+        """
         begin = 0
         outs = []
         for i, model in enumerate(self.in_models):
@@ -63,6 +109,31 @@ class MultiVAE(torch.nn.Module):
         return mu, logstd, out_mu, out_logstd
 
     def loss(self, x, y, sample=True, lambd=1.0, beta=1.0):
+        """
+        Compute ELBO.
+
+        N -> number of samples.
+        D -> input dimension.
+
+        Parameters
+        ----------
+        x : torch.tensor (N by D)
+            Prediction tensor.
+        y : torch.tensor (N by D)
+            Target tensor.
+        sample : bool
+            In forward pass, sampling is done from the latent distribution if
+            set true. Otherwise mean of the distribution is used.
+        lambd : float, optional
+            Coefficient of reconstruction loss.
+        beta : float, optional
+            Coefficient of KL divergence.
+        
+        Returns
+        -------
+        loss : torch.tensor (1)
+            Total loss (evidence lower bound).
+        """
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
         z_std = torch.exp(z_logstd)
         z_dist = torch.distributions.Normal(z_mu, z_std)
@@ -71,7 +142,8 @@ class MultiVAE(torch.nn.Module):
         o_std = torch.exp(o_logstd)
         o_dist = torch.distributions.Normal(o_mu, o_std)
         recon_loss = (-o_dist.log_prob(y).sum(dim=1).mean())
-        return lambd * recon_loss + beta * kl_loss
+        loss = lambd * recon_loss + beta * kl_loss
+        return loss
 
     def mse_loss(self, x, y, sample=True, lambd=1.0, beta=1.0, reduce=False):
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
