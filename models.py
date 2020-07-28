@@ -13,36 +13,49 @@ class MultiVAE(torch.nn.Module):
         Parameters
         ----------
         in_blocks : list of list of int
-            Encoder MLPs for different modalities. Each list specifies
-            an MLP's units (including input layer).
+            Encoder networks for different modalities. If a list starts with
+            -1, an MLP is created with hidden units specified in the list. If
+            a list starts with -2, a CNN is created with channel numbers
+            specified in the list. For CNN, list[1] and list[2] represent
+            the input and the output dimensions for the fully-connected layer.
         in_shared : list of int
             Shared encoder's units (including input layer).
         out_shared : list of int
             Shared decoder's units (including input layer).
         out_blocks : list of list of int
-            Decoder MLPs for different modalities. Each list specifies
-            an MLP's units (including input layer). As decoders predict
-            mean and standard deviation, output dimension should be doubled.
+            Decoder networks for different modalities. If a list starts with
+            -1, an MLP is created with hidden units specified in the list. If
+            a list starts with -2, a CNN is created with channel numbers
+            specified in the list. Convolutions are transposed. For CNN, list[1]
+            and list[2] represent the input and the output dimensions for the
+            fully-connected layer. As decoders predict mean and standard
+            deviation, output dimension should be doubled.
         init : "xavier" or "he"
             Initialization technique.
         """
         super(MultiVAE, self).__init__()
         self.in_models = []
-        self.in_slice = []
-        self.out_slice = []
         for block in in_blocks:
-            mlp = MLP(block, init=init)
-            last_idx = str(len(mlp.layers))
-            mlp.layers.add_module(last_idx, torch.nn.ReLU())
-            self.in_models.append(mlp)
-            self.in_slice.append(block[0])
-            self.out_slice.append(block[-1])
+            if block[0] == -1:
+                mlp = MLP(block[1:], init=init)
+                last_idx = str(len(mlp.layers))
+                mlp.layers.add_module(last_idx, torch.nn.ReLU())
+                self.in_models.append(mlp)
+            else:
+                conv = ConvSeq(block[3:], block[1], block[2])
+                last_idx = str(len(conv.conv))
+                conv.conv.add_module(last_idx, torch.nn.ReLU())
+                self.in_models.append(conv)
         self.in_models = torch.nn.ModuleList(self.in_models)
 
         self.out_models = []
         for block in out_blocks:
-            mlp = MLP(block, init=init)
-            self.out_models.append(mlp)
+            if block[0] == -1:
+                mlp = MLP(block[1:], init=init)
+                self.out_models.append(mlp)
+            else:
+                conv = ConvTSeq(block[3:], block[1], block[2])
+                self.out_models.append(conv)
         self.out_models = torch.nn.ModuleList(self.out_models)
 
         self.encoder = MLP(in_shared, init=init)
@@ -53,35 +66,31 @@ class MultiVAE(torch.nn.Module):
     def forward(self, x, sample=True):
         """Forward pass.
 
-        N -> number of samples.
-        D -> input dimension.
-        D_z -> latent dimension.
-
         Parameters
         ----------
-        x : torch.tensor (N by D)
-            Input tensor.
+        x : list of torch.Tensor
+            Input tensors for each modality.
         sample : bool
             Sampling is done from the latent distribution if set true.
             Otherwise mean of the distribution is used.
 
         Returns
         -------
-        mu : torch.tensor (N by D_z)
-            Mean of the latent distribution.
-        logstd : torch.tensor (N by D_z)
-            Log standard deviation of the latent distribution.
-        out_mu : torch.tensor (N by D)
-            Mean of the output distribution.
-        out_logstd : torch.tensor (N by D)
-            Log standard deviation of the output distribution.
+        mu : list of torch.Tensor
+            Mean of the latent distribution for each modality.
+        logstd : torch.Tensor
+            Log standard deviation of the latent distribution for each modality.
+        out_mu : torch.Tensor
+            Mean of the output distribution for each modality.
+        out_logstd : torch.Tensor
+            Log standard deviation of the output distribution for each modality.
         """
-        begin = 0
         outs = []
-        for i, model in enumerate(self.in_models):
-            partial_x = x[:, begin:(begin+self.in_slice[i])]
-            outs.append(model(partial_x))
-            begin += self.in_slice[i]
+        out_slice = []
+        for x_in, model in zip(x, self.in_models):
+            o = model(x_in)
+            outs.append(o)
+            out_slice.append(o.shape[1])
 
         h = torch.cat(outs, dim=1)
         h = self.encoder(h)
@@ -98,28 +107,23 @@ class MultiVAE(torch.nn.Module):
         out_mu = []
         out_logstd = []
         for i, model in enumerate(self.out_models):
-            partial_h = h[:, begin:(begin+self.out_slice[i])]
+            partial_h = h[:, begin:(begin+out_slice[i])]
             out = model(partial_h)
             d = out.shape[1]//2
             out_mu.append(out[:, :d])
             out_logstd.append(out[:, d:])
-            begin += self.out_slice[i]
-        out_mu = torch.cat(out_mu, dim=1)
-        out_logstd = torch.cat(out_logstd, dim=1)
+            begin += out_slice[i]
         return mu, logstd, out_mu, out_logstd
 
     def loss(self, x, y, sample=True, lambd=1.0, beta=1.0):
         """
         Compute ELBO.
 
-        N -> number of samples.
-        D -> input dimension.
-
         Parameters
         ----------
-        x : torch.tensor (N by D)
+        x : list of torch.Tensor
             Prediction tensor.
-        y : torch.tensor (N by D)
+        y : list of torch.Tensor
             Target tensor.
         sample : bool
             In forward pass, sampling is done from the latent distribution if
@@ -128,10 +132,10 @@ class MultiVAE(torch.nn.Module):
             Coefficient of reconstruction loss.
         beta : float, optional
             Coefficient of KL divergence.
-        
+
         Returns
         -------
-        loss : torch.tensor (1)
+        loss : torch.Tensor
             Total loss (evidence lower bound).
         """
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
@@ -139,9 +143,15 @@ class MultiVAE(torch.nn.Module):
         z_dist = torch.distributions.Normal(z_mu, z_std)
         kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
 
-        o_std = torch.exp(o_logstd)
-        o_dist = torch.distributions.Normal(o_mu, o_std)
-        recon_loss = (-o_dist.log_prob(y).sum(dim=1).mean())
+        recon_loss = 0.0
+        for x_m, x_s, y_m in zip(o_mu, o_logstd, y):
+            x_m = x_m.reshape(x_m.shape[0], -1)
+            x_s = x_s.reshape(x_s.shape[0], -1)
+            y_m = y_m.reshape(y_m.shape[0], -1)
+            x_std = torch.exp(x_s)
+            x_dist = torch.distributions.Normal(x_m, x_std)
+            recon_loss += (-x_dist.log_prob(y_m).sum(dim=1))
+        recon_loss = recon_loss.mean()
         loss = lambd * recon_loss + beta * kl_loss
         return loss
 
@@ -149,12 +159,21 @@ class MultiVAE(torch.nn.Module):
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
         z_std = torch.exp(z_logstd)
         z_dist = torch.distributions.Normal(z_mu, z_std)
+        kl_loss = torch.distributions.kl_divergence(z_dist, self.prior)
         if reduce:
-            kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).mean()
-            recon_loss = torch.nn.functional.mse_loss(o_mu, y, reduction="none").mean()
+            kl_loss = kl_loss.mean()
         else:
-            kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
-            recon_loss = torch.nn.functional.mse_loss(o_mu, y, reduction="none").sum(dim=1).mean()
+            kl_loss = kl_loss.sum(dim=1).mean()
+
+        recon_loss = 0.0
+        for x_m, y_m in zip(o_mu, y):
+            x_m = x_m.reshape(x_m.shape[0], -1)
+            y_m = y_m.reshape(y_m.shape[0], -1)
+            if reduce:
+                recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").mean()
+            else:
+                recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").sum(dim=1)
+        recon_loss /= len(y)
 
         return lambd * recon_loss + beta * kl_loss
 
@@ -229,3 +248,76 @@ class Linear(torch.nn.Module):
 
     def extra_repr(self):
         return "in_features={}, out_features={}".format(self.in_features, self.out_features)
+
+
+class ConvSeq(torch.nn.Module):
+    def __init__(self, channel_list, hidden_dim, out_dim):
+        super(ConvSeq, self).__init__()
+        convs = []
+        for i in range(len(channel_list)-1):
+            convs.append(Conv3x3Block(channel_list[i], channel_list[i+1]))
+        self.conv = torch.nn.Sequential(
+            torch.nn.Sequential(*convs),
+            Flatten([1, 2, 3]),
+            torch.nn.Linear(hidden_dim, out_dim))
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class ConvTSeq(torch.nn.Module):
+    def __init__(self, channel_list, in_dim, hidden_dim):
+        super(ConvTSeq, self).__init__()
+        self.fc = torch.nn.Sequential(
+            torch.nn.Linear(in_dim, hidden_dim),
+            torch.nn.ReLU())
+        self.conv = []
+        for i in range(len(channel_list)-1):
+            self.conv.append(ConvT3x3Block(channel_list[i], channel_list[i+1]))
+        self.conv = torch.nn.Sequential(*self.conv)
+        self.first_filter = self.conv[0].conv[0].weight.shape[0]
+
+    def forward(self, x):
+        h = self.fc(x)
+        width = int(math.sqrt(h.shape.numel() // (x.shape[0] * self.first_filter)))
+        h = h.reshape(x.shape[0], self.first_filter, width, width)
+        return self.conv(h)
+
+
+class Conv3x3Block(torch.nn.Module):
+    def __init__(self, in_channel, out_channel):
+        super(Conv3x3Block, self).__init__()
+        self.conv = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2))
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class ConvT3x3Block(torch.nn.Module):
+    def __init__(self, in_channel, out_channel):
+        super(ConvT3x3Block, self).__init__()
+        self.conv = torch.nn.Sequential(
+            torch.nn.ConvTranspose2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.Upsample(scale_factor=2, mode="nearest"))
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class Flatten(torch.nn.Module):
+    def __init__(self, dims):
+        super(Flatten, self).__init__()
+        self.dims = dims
+
+    def forward(self, x):
+        dim = 1
+        for d in self.dims:
+            dim *= x.shape[d]
+        return x.reshape(-1, dim)
+
+    def extra_repr(self):
+        return "dims=[" + ", ".join(list(map(str, self.dims))) + "]"
