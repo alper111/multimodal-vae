@@ -6,3 +6,4 @@ runs/*
 .vscode/*
 setup.cfg
 __pycache__/*
+*.yml
