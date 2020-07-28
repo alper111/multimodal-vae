@@ -1,5 +1,6 @@
 """Test multimodal VAE and print Figure 4."""
 import os
+import sys
 import torch
 import numpy as np
 import models
@@ -11,7 +12,10 @@ if torch.cuda.is_available():
 else:
     device = "cpu"
 
-run_name = "run-5"
+if len(sys.argv) < 2:
+    print("Usage: python test.py <run_name>")
+    exit()
+run_name = sys.argv[1]
 out_path = os.path.join("out", run_name)
 if not os.path.exists(out_path):
     os.makedirs(out_path)

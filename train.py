@@ -1,5 +1,6 @@
 """Train multimodal VAE."""
 import os
+import sys
 import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
@@ -11,7 +12,10 @@ if torch.cuda.is_available():
 else:
     device = "cpu"
 
-run_name = "run-5"
+if len(sys.argv) < 2:
+    print("Usage: python train.py <run_name>")
+    exit()
+run_name = sys.argv[1]
 logdir = os.path.join("runs", run_name)
 if os.path.exists(logdir):
     os.system("rm -rf %s" % logdir)
