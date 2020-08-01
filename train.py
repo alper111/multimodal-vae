@@ -3,13 +3,16 @@ import os
 import time
 import argparse
 import yaml
-import torch
 import numpy as np
+import torch
+import torchvision
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import models
+import data
 
-parser = argparse.ArgumentParser("Train effect prediction models.")
+parser = argparse.ArgumentParser("Train multimodal VAE.")
 parser.add_argument("-opts", help="option file", type=str, required=True)
 args = parser.parse_args()
 
@@ -25,29 +28,14 @@ print(yaml.dump(opts))
 logdir = os.path.join(opts["save"], "log")
 writer = SummaryWriter(logdir)
 
-# x_train = torch.tensor(np.load("data/train.npy"), dtype=torch.float, device=opts["device"])
-# x_test = torch.tensor(np.load("data/test.npy"), dtype=torch.float, device=opts["device"])
-# LOAD DATA
-train_grasp_img = torch.load("data/grasp_train_img.pt").float() / 255.0
-train_grasp_joint = torch.load("data/grasp_train_joint.pt")
-train_move_img = torch.load("data/move_train_img.pt").float() / 255.0
-train_move_joint = torch.load("data/move_train_joint.pt")
-test_grasp_img = torch.load("data/grasp_test_img.pt").float() / 255.0
-test_grasp_joint = torch.load("data/grasp_test_joint.pt")
-test_move_img = torch.load("data/move_test_img.pt").float() / 255.0
-test_move_joint = torch.load("data/move_test_joint.pt")
+trainset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="train")
+valset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="val")
 
-x_train_img = torch.cat([train_grasp_img, train_move_img], dim=0)
-x_train_joint = torch.cat([train_grasp_joint, train_move_joint], dim=0)
-x_test_img = torch.cat([test_grasp_img, test_move_img], dim=0)
-x_test_joint = torch.cat([test_grasp_joint, test_move_joint], dim=0)
-
-idx = int(0.8 * x_train_img.shape[0])
-x_train_img, x_val_img = x_train_img[:idx], x_train_img[idx:]
-x_train_joint, x_val_joint = x_train_joint[:idx], x_train_joint[idx:]
-
-# train_set = torch.utils.data.TensorDataset(x_train)
-# loader = torch.utils.data.DataLoader(train_set, batch_size=opts["batch_size"], shuffle=True)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts["batch_size"], shuffle=True)
+valloader = torch.utils.data.DataLoader(valset, batch_size=10000, shuffle=False)
+x_val_img, x_val_joint = iter(valloader).next()
+x_val_img = x_val_img.to(opts["device"])
+x_val_joint = x_val_joint.to(opts["device"])
 
 model = models.MultiVAE(
     in_blocks=opts["in_blocks"],
@@ -57,46 +45,61 @@ model = models.MultiVAE(
     init=opts["init_method"])
 model.to(opts["device"])
 optimizer = torch.optim.Adam(lr=opts["lr"], params=model.parameters(), amsgrad=True)
+# scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=10, verbose=True)
 print(model)
 
 for e in range(opts["epoch"]):
     running_avg = 0.0
-    R = torch.randperm(idx)
-    for i in tqdm(range(idx // opts["batch_size"])):
+    for i, (x_img, x_joint) in enumerate(trainloader):
         optimizer.zero_grad()
+        x_img = x_img.to(opts["device"])
+        x_joint = x_joint.to(opts["device"])
 
-        x_i_img = x_train_img[R[i*opts["batch_size"]:(i+1)*opts["batch_size"]]].to(opts["device"])
-        x_i_joint = x_train_joint[R[i*opts["batch_size"]:(i+1)*opts["batch_size"]]].to(opts["device"])
-
-        y_i_img = x_i_img.clone()
-        y_i_joint = x_i_joint.clone()
-
-        if np.random.rand() < 0.5:
-            x_i_img[:, 3:] = 0.0
-            x_i_joint[:, 6:] = -5.0
-
-        x_all = [x_i_img, x_i_joint]
-        y_all = [y_i_img, y_i_joint]
-
-        loss = model.loss(x_all, y_all, lambd=opts["lambda"], beta=opts["beta"])
+        y_img, y_joint = x_img.clone(), x_joint.clone()
+        loss = model.mse_loss([x_img, x_joint], [y_img, y_joint], lambd=opts["lambda"], beta=opts["beta"]*((0.95)**e), reduce=True)
+        # loss = model.loss([x_img, x_joint], [y_img, y_joint], lambd=opts["lambda"], beta=opts["beta"])
         loss.backward()
         optimizer.step()
         running_avg += loss.item()
     running_avg /= (i+1)
     with torch.no_grad():
-        y_val_img = x_val_img.clone()
-        y_val_joint = x_val_joint.clone()
-        if np.random.rand() < 0.5:
-            x_val_img[:, 3:] = 0.0
-            x_val_joint[:, 6:] = -5.0
-        x_val_all = [x_val_img, x_val_joint]
-        y_val_all = [y_val_img, y_val_joint]
-        mse_val = model.mse_loss(x_val_all, y_val_all, sample=False, beta=0.0)
+        y_val_img, y_val_joint = x_val_img.clone(), x_val_joint.clone()
 
+        mse_val = model.mse_loss(
+            [x_val_img, x_val_joint],
+            [y_val_img, y_val_joint],
+            sample=False, beta=0.0, reduce=True)
+
+    # scheduler.step(mse_val)
     writer.add_scalar("Epoch loss", running_avg, e)
     writer.add_scalar("MSE val",  mse_val, e)
-    print("Epoch loss: %.3f" % running_avg)
-    print("MSE validation: %.3f" % mse_val)
+    print("Epoch %d loss: %.5f, MSE val: %.5f" % (e+1, running_avg, mse_val))
 
-    model.save(opts["save"], "multivae_%d" % e)
+    if (e+1) % 20 == 0:
+        model.save(opts["save"], "multivae_%d" % (e+1))
+        with torch.no_grad():
+            x_img, x_joint = valset.get_trajectory(np.random.randint(0, 16))
+            _, _, o_mu, o_logstd = model([x_img.to(opts["device"]), x_joint.to(opts["device"])])
+            img_m, joint_m = o_mu[0].cpu().clamp(-1., 1.), o_mu[1].cpu()
+            img_s, joint_s = torch.exp(o_logstd[0]).cpu(), torch.exp(o_logstd[1]).cpu()
+        pred_img = (((img_m[:, :3] / 2) + 0.5)*255).byte()
+        orig_img = (((x_img[:, :3] / 2) + 0.5)*255).byte()
+        img_cat = torch.cat([orig_img, pred_img], dim=3).permute(0, 2, 3, 1)
+        torchvision.io.write_video(os.path.join(opts["save"], "recons_%d.mp4" % (e+1)), img_cat, fps=30)
+
+        fig, ax = plt.subplots(3, 2)
+        for i in range(3):
+            for j in range(2):
+                ax[i][j].plot(x_joint[:, i*2+j], c="k")
+                ax[i][j].plot(joint_m[:, i*2+j], c="orange", linestyle="dashed")
+                lower_plot = joint_m[:, i*2+j] - joint_s[:, i*2+j]
+                upper_plot = joint_m[:, i*2+j] + joint_s[:, i*2+j]
+                ax[i][j].fill_between(np.arange(x_joint.shape[0]), lower_plot, upper_plot, color="orange", alpha=0.5)
+                ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
+                ax[i][j].set_xlabel("Timesteps")
+                ax[i][j].set_ylim(-3, 3)
+        pp = PdfPages(os.path.join(opts["save"], "joints_recons%d.pdf" % (e+1)))
+        pp.savefig(fig)
+        pp.close()
+
     model.save(opts["save"], "multivae_last")
