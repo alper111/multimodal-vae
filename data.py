@@ -58,7 +58,9 @@ class UR10Dataset(torch.utils.data.Dataset):
         for i in range(self.num_modality):
             x = self.data[i][idx].clone()
             if len(x.shape) == 3:
-                x = x.float().div(255) - 0.5
+                x = (x.float().div(255) - 0.5) * 2
+            else:
+                x = x.div(3)
             sample.append(x)
         return sample
 
@@ -74,6 +76,8 @@ class UR10Dataset(torch.utils.data.Dataset):
         for i in range(self.num_modality):
             x = self.data[i][begin:end].clone()
             if len(x.shape) == 4:
-                x = x.float().div(255) - 0.5
+                x = (x.float().div(255) - 0.5) * 2
+            else:
+                x = x.div(3)
             sample.append(x)
         return sample
