@@ -105,12 +105,13 @@ for e in range(opts["epoch"]):
             # forecasting
             img_traj, joint_traj = model.forecast(x_partial, traj_length)
 
-        x_cat = torch.cat([x_img[:, :3], img_m[:, :3]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(opts["save"], "recons_%d.mp4" % (e+1)), ((x_cat/2+0.5)*255).byte(), fps=30)
         x_cat = torch.cat([x_img[:, 3:], img_noised_m[:, 3:]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(opts["save"], "recons_noise_%d.mp4" % (e+1)), ((x_cat/2+0.5)*255).byte(), fps=30)
+        torchvision.io.write_video(os.path.join(opts["save"], "onestep_%d.mp4" % (e+1)),
+                                   utils.to_pixel(x_cat).byte(), fps=30)
+
         x_cat = torch.cat([x_img[start_idx:, 3:], img_traj[:, 3:].cpu()], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(opts["save"], "forecast_%d.mp4" % (e+1)), ((x_cat/2+0.5)*255).byte(), fps=30)
+        torchvision.io.write_video(os.path.join(opts["save"], "forecast_%d.mp4" % (e+1)),
+                                   utils.to_pixel(x_cat).byte(), fps=30)
 
         fig, ax = plt.subplots(3, 2)
         for i in range(3):
