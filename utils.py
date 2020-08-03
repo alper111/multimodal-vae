@@ -12,7 +12,7 @@ def get_parameter_count(model):
     return total_num
 
 
-def noise_input(x, prob=[0.5, 0.5], direction="forward", modality_noise=False):
+def noise_input(x, banned_modality, prob=[0.5, 0.5], direction="forward", modality_noise=False):
     N = x[0].shape[0]
     D = len(x)
     dev = x[0].device
@@ -34,6 +34,11 @@ def noise_input(x, prob=[0.5, 0.5], direction="forward", modality_noise=False):
     alpha = m.sample((N, )).argmax(dim=1)
     alpha = alpha.to(dev)
     for i in range(D):
+        x_noised.append(x[i].clone())
+        if banned_modality[i] == 1:
+            x_noised[-1].zero_()
+            continue
+
         d = x[i].shape[1] // 2
         if direction == "both":
             noise_mask = torch.ones(3, 2*d, device=dev)
@@ -47,7 +52,6 @@ def noise_input(x, prob=[0.5, 0.5], direction="forward", modality_noise=False):
             noise_mask[1, :d] = 0.
 
         noise_mask = noise_mask[alpha]
-        x_noised.append(x[i].clone())
         noise = torch.zeros_like(x_noised[-1], device=dev)
         if len(x[i].shape) == 4:
             noise_mask = noise_mask.unsqueeze(2).unsqueeze(3)
