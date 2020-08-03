@@ -49,8 +49,6 @@ model = models.MultiVAE(
     init=opts["init_method"])
 model.to(dev)
 optimizer = torch.optim.Adam(lr=opts["lr"], params=model.parameters(), amsgrad=True)
-# scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=10, verbose=True)
-# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.977)
 print(model)
 print("Parameter count:", utils.get_parameter_count(model))
 
@@ -62,7 +60,8 @@ for e in range(opts["epoch"]):
         x_joint = x_joint.to(dev)
 
         x_all = [x_img, x_joint]
-        x_noised = utils.noise_input(x_all, prob=[0.5, 0.5, 0.5], direction="both", modality_noise=True)
+        x_noised = utils.noise_input(x_all, banned_modality=[0, 0], prob=[0.5, 0.5, 0.5],
+                                     direction="both", modality_noise=True)
 
         loss = model.mse_loss(x_noised, x_all, lambd=opts["lambda"], beta=opts["beta"], sample=False, reduce=True)
         # loss = model.loss(x_noised, x_all, lambd=opts["lambda"], beta=opts["beta"], sample=False)
@@ -74,14 +73,14 @@ for e in range(opts["epoch"]):
 
     running_avg /= (i+1)
     with torch.no_grad():
-        x_val_plain = utils.noise_input(x_val_all, prob=[1.0, 0.0])
-        x_val_noised = utils.noise_input(x_val_all, prob=[0.0, 0.5, 0.5], direction="both", modality_noise=True)
+        x_val_plain = utils.noise_input(x_val_all, banned_modality=[0, 0], prob=[1.0, 0.0])
+        x_val_noised = utils.noise_input(x_val_all, banned_modality=[0, 0], prob=[0.0, 0.5, 0.5],
+                                         direction="both", modality_noise=True)
         mse_val = model.mse_loss(x_val_plain, x_val_all, sample=False, beta=0.0, reduce=True)
         mse_val_noised = model.mse_loss(x_val_noised, x_val_all, sample=False, beta=0.0, reduce=True)
 
     del x_val_plain[:], x_val_noised[:]
 
-    # scheduler.step()
     writer.add_scalar("Epoch loss", running_avg, e)
     writer.add_scalar("MSE val",  mse_val, e)
     writer.add_scalar("MSE val noised",  mse_val_noised, e)
@@ -96,7 +95,7 @@ for e in range(opts["epoch"]):
             traj_length = N - start_idx
             x_all = [x_img.to(dev), x_joint.to(dev)]
             x_partial = [x_img[start_idx:(start_idx+1)].to(dev), x_joint[start_idx:(start_idx+1)].to(dev)]
-            x_noised = utils.noise_input(x_all, prob=[0.0, 1.0], direction="forward")
+            x_noised = utils.noise_input(x_all, banned_modality=[0, 0], prob=[0.0, 1.0], direction="forward")
             # reconstruction
             _, _, o_mu, o_logstd = model(x_all, sample=False)
             _, _, noised_mu, _ = model(x_noised, sample=False)
@@ -117,14 +116,10 @@ for e in range(opts["epoch"]):
         for i in range(3):
             for j in range(2):
                 ax[i][j].plot(x_joint[:, i*2+j], c="k")
-                ax[i][j].plot(joint_m[:, i*2+j], c="orange", linestyle="dashed")
-                ax[i][j].plot(torch.arange(start_idx, N), joint_traj[:, i*2+j].cpu(), c="m", linestyle="dashed")
-                # lower_plot = joint_m[:, i*2+j] - joint_s[:, i*2+j]
-                # upper_plot = joint_m[:, i*2+j] + joint_s[:, i*2+j]
-                # ax[i][j].fill_between(np.arange(x_joint.shape[0]), lower_plot, upper_plot, color="orange", alpha=0.5)
+                ax[i][j].plot(joint_m[:, i*2+j], c="b")
+                ax[i][j].plot(torch.arange(start_idx, N), joint_traj[:, i*2+j].cpu(), c="m")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
-                ax[i][j].set_ylim(-1, 1)
         pp = PdfPages(os.path.join(opts["save"], "joints_recons%d.pdf" % (e+1)))
         pp.savefig(fig)
         pp.close()
