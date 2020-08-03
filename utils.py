@@ -12,6 +12,10 @@ def get_parameter_count(model):
     return total_num
 
 
+def to_pixel(x):
+    return (x*0.5+0.5)*255
+
+
 def noise_input(x, banned_modality, prob=[0.5, 0.5], direction="forward", modality_noise=False):
     N = x[0].shape[0]
     D = len(x)
