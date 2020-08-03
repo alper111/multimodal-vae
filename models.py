@@ -184,21 +184,34 @@ class MultiVAE(torch.nn.Module):
 
         return (lambd * recon_loss + beta * kl_loss).mean()
 
-    def forecast(self, x, timesteps):
+    def forecast(self, x, forward_t, backward_t, banned_modality):
+        D = len(x)
+        dims = []
         trajectory = []
-        for _ in range(len(x)):
-            trajectory.append([])
+        for i in range(D):
+            trajectory.append([x[i].clone()])
+            dims.append(x[i].shape[1] // 2)
+
         with torch.no_grad():
-            for t in range(timesteps):
-                x_noised = utils.noise_input(x, prob=[0.0, 1.0], direction="forward")
-                _, _, x, _ = self.forward(x_noised, sample=True)
-                for i in range(len(x)):
+
+            for _ in range(forward_t):
+                x_noised = utils.noise_input(x, banned_modality=banned_modality, prob=[0.0, 1.0], direction="forward")
+                _, _, x, _ = self.forward(x_noised, sample=False)
+                for i in range(D):
                     x[i].clamp_(-1.0, 1.0)
                     trajectory[i].append(x[i].clone())
-                for i in range(len(x)):
-                    d = x[i].shape[1] // 2
-                    x[i][:, :d] = x[i][:, d:]
-        for i in range(len(trajectory)):
+                    x[i][:, :dims[i]] = x[i][:, dims[i]:]
+
+            x = [trajectory[0][0], trajectory[1][0]]
+            for _ in range(backward_t):
+                x_noised = utils.noise_input(x, banned_modality=banned_modality, prob=[0.0, 1.0], direction="backward")
+                _, _, x, _ = self.forward(x_noised, sample=False)
+                for i in range(D):
+                    x[i].clamp_(-1.0, 1.0)
+                    trajectory[i].insert(0, x[i].clone())
+                    x[i][:, dims[i]:] = x[i][:, :dims[i]]
+
+        for i in range(D):
             trajectory[i] = torch.cat(trajectory[i], dim=0)
         return trajectory
 
