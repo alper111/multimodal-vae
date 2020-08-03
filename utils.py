@@ -12,7 +12,7 @@ def get_parameter_count(model):
     return total_num
 
 
-def noise_input(x, prob=0.5, bidirectional=False, modality_noise=True):
+def noise_input(x, prob=0.5, bidirectional=False, modality_noise=False):
     N = x[0].shape[0]
     D = len(x)
     dev = x[0].device
