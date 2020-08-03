@@ -48,7 +48,7 @@ def noise_input(x, prob=[0.5, 0.5], direction="forward", modality_noise=False):
 
         noise_mask = noise_mask[alpha]
         x_noised.append(x[i].clone())
-        noise = torch.rand_like(x_noised[-1], device=dev) * 2 - 1
+        noise = torch.zeros_like(x_noised[-1], device=dev)
         if len(x[i].shape) == 4:
             noise_mask = noise_mask.unsqueeze(2).unsqueeze(3)
             if modality_noise:
@@ -57,5 +57,9 @@ def noise_input(x, prob=[0.5, 0.5], direction="forward", modality_noise=False):
         x_noised[-1] = (noise_mask * x_noised[-1] + (1-noise_mask) * noise)
         if modality_noise:
             x_noised[-1] = modality_mask[i] * x_noised[-1]
+
+    if modality_noise:
+        del modality_mask[:]
+    del noise_mask
 
     return x_noised

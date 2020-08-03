@@ -190,7 +190,7 @@ class MultiVAE(torch.nn.Module):
             trajectory.append([])
         with torch.no_grad():
             for t in range(timesteps):
-                x_noised = utils.noise_input(x, prob=1.0)
+                x_noised = utils.noise_input(x, prob=[0.0, 1.0], direction="forward")
                 _, _, x, _ = self.forward(x_noised, sample=True)
                 for i in range(len(x)):
                     x[i].clamp_(-1.0, 1.0)

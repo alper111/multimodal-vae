@@ -62,21 +62,24 @@ for e in range(opts["epoch"]):
         x_joint = x_joint.to(dev)
 
         x_all = [x_img, x_joint]
-        x_noised = utils.noise_input(x_all)
+        x_noised = utils.noise_input(x_all, prob=[0.5, 0.5, 0.5], direction="both", modality_noise=True)
 
-        # loss = model.mse_loss([x_img, x_joint], [y_img, y_joint], lambd=opts["lambda"], beta=opts["beta"]*((0.95)**e), reduce=True)
         loss = model.mse_loss(x_noised, x_all, lambd=opts["lambda"], beta=opts["beta"], sample=False, reduce=True)
-        # loss = model.loss([x_img, x_joint], [y_img, y_joint], lambd=opts["lambda"], beta=opts["beta"]*((0.95)**e))
         # loss = model.loss(x_noised, x_all, lambd=opts["lambda"], beta=opts["beta"], sample=False)
         loss.backward()
         optimizer.step()
         running_avg += loss.item()
+
+        del x_all[:], x_noised[:]
+
     running_avg /= (i+1)
     with torch.no_grad():
-        x_val_plain = utils.noise_input(x_val_all, prob=0.0)
-        x_val_noised = utils.noise_input(x_val_all, prob=1.0)
+        x_val_plain = utils.noise_input(x_val_all, prob=[1.0, 0.0])
+        x_val_noised = utils.noise_input(x_val_all, prob=[0.0, 0.5, 0.5], direction="both", modality_noise=True)
         mse_val = model.mse_loss(x_val_plain, x_val_all, sample=False, beta=0.0, reduce=True)
         mse_val_noised = model.mse_loss(x_val_noised, x_val_all, sample=False, beta=0.0, reduce=True)
+
+    del x_val_plain[:], x_val_noised[:]
 
     # scheduler.step()
     writer.add_scalar("Epoch loss", running_avg, e)
@@ -87,16 +90,16 @@ for e in range(opts["epoch"]):
     if (e+1) % 20 == 0:
         model.save(opts["save"], "multivae_%d" % (e+1))
         with torch.no_grad():
-            x_img, x_joint = valset.get_trajectory(np.random.randint(0, 16))
+            x_img, x_joint = valset.get_trajectory(np.random.randint(0, 1))
             N = x_img.shape[0]
             start_idx = int(0.5 * N)
             traj_length = N - start_idx
             x_all = [x_img.to(dev), x_joint.to(dev)]
             x_partial = [x_img[start_idx:(start_idx+1)].to(dev), x_joint[start_idx:(start_idx+1)].to(dev)]
-            x_noised = utils.noise_input(x_all, prob=1.0)
+            x_noised = utils.noise_input(x_all, prob=[0.0, 1.0], direction="forward")
             # reconstruction
             _, _, o_mu, o_logstd = model(x_all, sample=False)
-            _, _, noised_mu, _ = model(x_all, sample=False)
+            _, _, noised_mu, _ = model(x_noised, sample=False)
             img_m, joint_m = o_mu[0].cpu().clamp(-1., 1.), o_mu[1].cpu()
             img_noised_m, joint_noised_m = o_mu[0].cpu().clamp(-1., 1.), o_mu[1].cpu()
             img_s, joint_s = torch.exp(o_logstd[0]).cpu(), torch.exp(o_logstd[1]).cpu()
@@ -125,5 +128,7 @@ for e in range(opts["epoch"]):
         pp = PdfPages(os.path.join(opts["save"], "joints_recons%d.pdf" % (e+1)))
         pp.savefig(fig)
         pp.close()
+
+        del x_all[:], x_partial[:], x_noised[:], img_traj, joint_traj
 
     model.save(opts["save"], "multivae_last")
