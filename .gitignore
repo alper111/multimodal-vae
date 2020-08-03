@@ -7,3 +7,4 @@ runs/*
 setup.cfg
 __pycache__/*
 *.yml
+*.ipynb
