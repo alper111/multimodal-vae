@@ -2,6 +2,7 @@
 import torch
 import math
 import os
+import utils
 
 
 class MultiVAE(torch.nn.Module):
@@ -42,9 +43,11 @@ class MultiVAE(torch.nn.Module):
                 mlp.layers.add_module(last_idx, torch.nn.ReLU())
                 self.in_models.append(mlp)
             else:
-                conv = ConvSeq(block[3:], block[1], block[2])
+                conv = ConvEnc(block[3:], block[1], block[2])
                 last_idx = str(len(conv.conv))
                 conv.conv.add_module(last_idx, torch.nn.ReLU())
+
+                # conv = torch.nn.Sequential(ConvEncoder(block[4:], [6, 128, 128], 128), torch.nn.ReLU())
                 self.in_models.append(conv)
         self.in_models = torch.nn.ModuleList(self.in_models)
 
@@ -54,12 +57,13 @@ class MultiVAE(torch.nn.Module):
                 mlp = MLP(block[1:], init=init)
                 self.out_models.append(mlp)
             else:
-                conv = ConvTSeq(block[3:], block[1], block[2])
+                conv = ConvDec(block[3:], block[1], block[2])
+                # conv = ConvDecoder(block[4:], [512, 4, 4], 128)
                 self.out_models.append(conv)
         self.out_models = torch.nn.ModuleList(self.out_models)
 
-        self.encoder = MLP(in_shared, init=init)
-        self.decoder = MLP(out_shared, init=init)
+        self.encoder = torch.nn.Sequential(MLP(in_shared, init=init), torch.nn.Tanh())
+        self.decoder = torch.nn.Sequential(MLP(out_shared, init=init), torch.nn.ReLU())
         self.z_d = in_shared[-1]//2
         self.prior = torch.distributions.Normal(torch.tensor(0.0), torch.tensor(1.0))
 
@@ -141,7 +145,8 @@ class MultiVAE(torch.nn.Module):
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
         z_std = torch.exp(z_logstd)
         z_dist = torch.distributions.Normal(z_mu, z_std)
-        kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
+        # kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
+        kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).mean()
 
         recon_loss = 0.0
         for x_m, x_s, y_m in zip(o_mu, o_logstd, y):
@@ -150,8 +155,10 @@ class MultiVAE(torch.nn.Module):
             y_m = y_m.reshape(y_m.shape[0], -1)
             x_std = torch.exp(x_s)
             x_dist = torch.distributions.Normal(x_m, x_std)
-            recon_loss += (-x_dist.log_prob(y_m).sum(dim=1))
-        recon_loss = recon_loss.mean()
+            # recon_loss += (-x_dist.log_prob(y_m).sum(dim=1))
+            recon_loss += (-x_dist.log_prob(y_m).mean())
+        # recon_loss = recon_loss.mean()
+        recon_loss /= len(y)
         loss = lambd * recon_loss + beta * kl_loss
         return loss
 
@@ -175,14 +182,32 @@ class MultiVAE(torch.nn.Module):
                 recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").sum(dim=1)
         recon_loss /= len(y)
 
-        return lambd * recon_loss + beta * kl_loss
+        return (lambd * recon_loss + beta * kl_loss).mean()
+
+    def forecast(self, x, timesteps):
+        trajectory = []
+        for _ in range(len(x)):
+            trajectory.append([])
+        with torch.no_grad():
+            for t in range(timesteps):
+                x_noised = utils.noise_input(x, prob=1.0)
+                _, _, x, _ = self.forward(x_noised, sample=True)
+                for i in range(len(x)):
+                    x[i].clamp_(-1.0, 1.0)
+                    trajectory[i].append(x[i].clone())
+                for i in range(len(x)):
+                    d = x[i].shape[1] // 2
+                    x[i][:, :d] = x[i][:, d:]
+        for i in range(len(trajectory)):
+            trajectory[i] = torch.cat(trajectory[i], dim=0)
+        return trajectory
 
     def load(self, path, name):
         state_dict = torch.load(os.path.join(path, name+".ckpt"))
         self.load_state_dict(state_dict)
 
     def save(self, path, name):
-        dv = self.encoder.layers[-1].weight.device
+        dv = self.encoder[0].layers[-1].weight.device
         if not os.path.exists(path):
             os.makedirs(path)
         torch.save(self.eval().cpu().state_dict(), os.path.join(path, name+".ckpt"))
@@ -250,12 +275,12 @@ class Linear(torch.nn.Module):
         return "in_features={}, out_features={}".format(self.in_features, self.out_features)
 
 
-class ConvSeq(torch.nn.Module):
+class ConvEnc(torch.nn.Module):
     def __init__(self, channel_list, hidden_dim, out_dim):
-        super(ConvSeq, self).__init__()
+        super(ConvEnc, self).__init__()
         convs = []
         for i in range(len(channel_list)-1):
-            convs.append(Conv3x3Block(channel_list[i], channel_list[i+1]))
+            convs.append(Conv3x3Block(channel_list[i], channel_list[i+1], sampling="down"))
         self.conv = torch.nn.Sequential(
             torch.nn.Sequential(*convs),
             Flatten([1, 2, 3]),
@@ -265,17 +290,24 @@ class ConvSeq(torch.nn.Module):
         return self.conv(x)
 
 
-class ConvTSeq(torch.nn.Module):
+class ConvDec(torch.nn.Module):
     def __init__(self, channel_list, in_dim, hidden_dim):
-        super(ConvTSeq, self).__init__()
+        super(ConvDec, self).__init__()
         self.fc = torch.nn.Sequential(
             torch.nn.Linear(in_dim, hidden_dim),
             torch.nn.ReLU())
         self.conv = []
         for i in range(len(channel_list)-1):
-            self.conv.append(ConvT3x3Block(channel_list[i], channel_list[i+1]))
+            self.conv.append(Conv3x3Block(channel_list[i], channel_list[i+1], sampling="up"))
+
+        self.conv.append(torch.nn.Conv2d(channel_list[-1], 16, kernel_size=3, stride=1, padding=1))
+        self.conv.append(torch.nn.ReLU())
+        self.conv.append(torch.nn.Conv2d(16, 12, kernel_size=3, stride=1, padding=1))
+        self.conv.append(torch.nn.ReLU())
+        self.conv.append(torch.nn.Conv2d(12, 12, kernel_size=3, stride=1, padding=1))
+        # self.conv.append(torch.nn.Tanh())
         self.conv = torch.nn.Sequential(*self.conv)
-        self.first_filter = self.conv[0].conv[0].weight.shape[0]
+        self.first_filter = self.conv[0].conv[0].weight.shape[1]
 
     def forward(self, x):
         h = self.fc(x)
@@ -285,24 +317,15 @@ class ConvTSeq(torch.nn.Module):
 
 
 class Conv3x3Block(torch.nn.Module):
-    def __init__(self, in_channel, out_channel):
+    def __init__(self, in_channel, out_channel, sampling):
         super(Conv3x3Block, self).__init__()
-        self.conv = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2))
-
-    def forward(self, x):
-        return self.conv(x)
-
-
-class ConvT3x3Block(torch.nn.Module):
-    def __init__(self, in_channel, out_channel):
-        super(ConvT3x3Block, self).__init__()
-        self.conv = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.Upsample(scale_factor=2, mode="nearest"))
+        self.conv = [torch.nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1)]
+        self.conv.append(torch.nn.ReLU())
+        if sampling == "down":
+            self.conv.append(torch.nn.MaxPool2d(kernel_size=2))
+        elif sampling == "up":
+            self.conv.append(torch.nn.Upsample(scale_factor=2, mode="nearest"))
+        self.conv = torch.nn.Sequential(*self.conv)
 
     def forward(self, x):
         return self.conv(x)
@@ -321,3 +344,46 @@ class Flatten(torch.nn.Module):
 
     def extra_repr(self):
         return "dims=[" + ", ".join(list(map(str, self.dims))) + "]"
+
+
+class ConvEncoder(torch.nn.Module):
+    def __init__(self, channels, input_shape, latent_dim, activation=torch.nn.ReLU()):
+        super(ConvEncoder, self).__init__()
+        convolutions = []
+        current_shape = input_shape
+        for ch in channels:
+            convolutions.append(torch.nn.Conv2d(in_channels=current_shape[0], out_channels=ch, kernel_size=4, stride=2, padding=1))
+            current_shape = [ch, current_shape[1] // 2, current_shape[2] // 2]
+            convolutions.append(activation)
+        self.convolutions = torch.nn.Sequential(*convolutions)
+        self.dense = torch.nn.Linear(in_features=current_shape[0] * current_shape[1] * current_shape[2], out_features=latent_dim)
+
+    def forward(self, x, y=None):
+        out = self.convolutions(x)
+        out = out.view(out.shape[0], -1)
+        out = self.dense(out)
+        return out
+
+
+class ConvDecoder(torch.nn.Module):
+    def __init__(self, channels, input_shape, latent_dim, activation=torch.nn.ReLU()):
+        super(ConvDecoder, self).__init__()
+        self.input_shape = input_shape
+        self.dense = torch.nn.Sequential(
+            torch.nn.Linear(in_features=latent_dim, out_features=input_shape[0] * input_shape[1] * input_shape[2]),
+            activation)
+
+        convolutions = []
+        current_shape = input_shape
+        for ch in channels[:-1]:
+            convolutions.append(torch.nn.ConvTranspose2d(in_channels=current_shape[0], out_channels=ch, kernel_size=4, stride=2, padding=1))
+            current_shape = [ch, current_shape[1] * 2, current_shape[2] * 2]
+            convolutions.append(activation)
+        convolutions.append(torch.nn.ConvTranspose2d(in_channels=current_shape[0], out_channels=channels[-1], kernel_size=4, stride=2, padding=1))
+        self.convolutions = torch.nn.Sequential(*convolutions)
+
+    def forward(self, x):
+        out = self.dense(x)
+        out = out.reshape(-1, self.input_shape[0], self.input_shape[1], self.input_shape[2])
+        out = self.convolutions(out)
+        return out
