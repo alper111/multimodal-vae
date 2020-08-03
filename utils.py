@@ -12,7 +12,7 @@ def get_parameter_count(model):
     return total_num
 
 
-def noise_input(x, prob=0.5, direction="forward", modality_noise=False):
+def noise_input(x, prob=[0.5, 0.5], direction="forward", modality_noise=False):
     N = x[0].shape[0]
     D = len(x)
     dev = x[0].device
@@ -21,7 +21,6 @@ def noise_input(x, prob=0.5, direction="forward", modality_noise=False):
         modality_mask = []
         for i in range(D):
             modality_mask.append(temp.sample((N, )).int().to(dev))
-            print(modality_mask[i])
         global_mask = torch.ones(N, dtype=torch.int, device=dev)
         for i in range(D):
             global_mask *= (1 - modality_mask[i])
@@ -31,8 +30,8 @@ def noise_input(x, prob=0.5, direction="forward", modality_noise=False):
             modality_mask[i] = modality_mask[i].unsqueeze(1).float()
 
     x_noised = []
-    m = torch.distributions.Binomial(probs=prob)
-    alpha = m.sample((N, ))
+    m = torch.distributions.Multinomial(probs=torch.tensor(prob))
+    alpha = m.sample((N, )).argmax(dim=1)
     alpha = alpha.to(dev)
     for i in range(D):
         d = x[i].shape[1] // 2
@@ -47,9 +46,7 @@ def noise_input(x, prob=0.5, direction="forward", modality_noise=False):
             noise_mask = torch.ones(2, 2*d, device=dev)
             noise_mask[1, :d] = 0.
 
-        repeat_cnt = int(N // noise_mask.shape[0]) + 1
-        noise_mask = noise_mask.repeat(repeat_cnt, 1)[:N]
-
+        noise_mask = noise_mask[alpha]
         x_noised.append(x[i].clone())
         noise = torch.rand_like(x_noised[-1], device=dev) * 2 - 1
         if len(x[i].shape) == 4:
