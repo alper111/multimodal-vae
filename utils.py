@@ -12,7 +12,7 @@ def get_parameter_count(model):
     return total_num
 
 
-def noise_input(x, prob=0.5, bidirectional=False, modality_noise=False):
+def noise_input(x, prob=0.5, direction="forward", modality_noise=False):
     N = x[0].shape[0]
     D = len(x)
     dev = x[0].device
@@ -36,20 +36,22 @@ def noise_input(x, prob=0.5, bidirectional=False, modality_noise=False):
     alpha = alpha.to(dev)
     for i in range(D):
         d = x[i].shape[1] // 2
-        if bidirectional:
+        if direction == "both":
             noise_mask = torch.ones(3, 2*d, device=dev)
             noise_mask[1, :d] = 0.
             noise_mask[2, d:] = 0.
-        else:
+        elif direction == "forward":
             noise_mask = torch.ones(2, 2*d, device=dev)
             noise_mask[1, d:] = 0.
+        elif direction == "backward":
+            noise_mask = torch.ones(2, 2*d, device=dev)
+            noise_mask[1, :d] = 0.
 
         repeat_cnt = int(N // noise_mask.shape[0]) + 1
         noise_mask = noise_mask.repeat(repeat_cnt, 1)[:N]
 
         x_noised.append(x[i].clone())
-        # noise = torch.rand_like(x_noised[-1], device=dev) * 2 - 1
-        noise = torch.zeros_like(x_noised[-1], device=dev)
+        noise = torch.rand_like(x_noised[-1], device=dev) * 2 - 1
         if len(x[i].shape) == 4:
             noise_mask = noise_mask.unsqueeze(2).unsqueeze(3)
             if modality_noise:
