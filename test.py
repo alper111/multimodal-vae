@@ -32,7 +32,7 @@ model.cpu().eval()
 print(model)
 
 out_folder = os.path.join(opts["save"], "outs")
-banned_mods = [1, 0]
+banned_mods = [0, 0]
 yje = torch.zeros(6)
 zje = torch.zeros(6)
 
@@ -48,7 +48,9 @@ for exp in range(20):
     backward_t = start_idx
     x_all = [x_img, x_joint]
     xn_img, xn_joint = utils.noise_input(x_all, banned_mods, prob=[0., 1.], direction="forward", modality_noise=False)
-    x_condition = [xn_img[start_idx:(start_idx+1)], xn_joint[start_idx:(start_idx+1)]]
+    x_condition = [x_img[start_idx:(start_idx+1)], x_joint[start_idx:(start_idx+1)]]
+    x_condition[0][:, :3] = x_condition[0][:, 3:]
+    x_condition[1][:, :6] = x_condition[1][:, 6:]
 
     with torch.no_grad():
         # one-step forward prediction
@@ -70,7 +72,7 @@ for exp in range(20):
                 ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j + 6], c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
-        pp = PdfPages(os.path.join(exp_folder, "joint-joints.pdf"))
+        pp = PdfPages(os.path.join(exp_folder, "both-joints.pdf"))
         pp.savefig(fig)
         pp.close()
 
@@ -82,9 +84,9 @@ for exp in range(20):
         print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error))
 
         x_cat = torch.cat([x_img[:, 3:], y_img[:, 3:]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(exp_folder, "joint-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
+        torchvision.io.write_video(os.path.join(exp_folder, "both-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
         x_cat = torch.cat([x_img[:, 3:], z_img[:, 3:]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(exp_folder, "joint-forecast.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
+        torchvision.io.write_video(os.path.join(exp_folder, "both-forecast.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
 
 yje = np.degrees(yje/20)
 zje = np.degrees(zje/20)
