@@ -33,6 +33,7 @@ print(model)
 
 out_folder = os.path.join(opts["save"], "outs")
 banned_mods = [0, 0]
+prefix = "both"
 yje = torch.zeros(7)
 zje = torch.zeros(7)
 
@@ -49,8 +50,9 @@ for exp in range(20):
     x_all = [x_img, x_joint]
     xn_img, xn_joint = utils.noise_input(x_all, banned_mods, prob=[0., 1.], direction="forward", modality_noise=False)
     x_condition = [x_img[start_idx:(start_idx+1)], x_joint[start_idx:(start_idx+1)]]
-    x_condition[0][:, :3] = x_condition[0][:, 3:]
-    x_condition[1][:, :7] = x_condition[1][:, 7:]
+    # x[t+1] <- x[t]
+    x_condition[0][:, 3:] = x_condition[0][:, :3]
+    x_condition[1][:, 7:] = x_condition[1][:, :7]
 
     with torch.no_grad():
         # one-step forward prediction
@@ -66,27 +68,29 @@ for exp in range(20):
         fig, ax = plt.subplots(3, 2, figsize=(12, 10))
         for i in range(3):
             for j in range(2):
-                ax[i][j].plot(x_joint[:, i*2 + j + 7] * 3, c="k")
-                ax[i][j].plot(y_joint[:, i*2 + j + 7] * 3, c="b")
-                ax[i][j].plot(z_joint[:, i*2 + j + 7] * 3, c="m")
-                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j + 7] * 3, c="r", marker="x")
+                ax[i][j].plot(x_joint[:, i*2 + j] * 3, c="k")
+                ax[i][j].plot(y_joint[:, i*2 + j] * 3, c="b")
+                ax[i][j].plot(z_joint[:, i*2 + j] * 3, c="m")
+                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j] * 3, c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
-        pp = PdfPages(os.path.join(exp_folder, "both-joints.pdf"))
+        pp = PdfPages(os.path.join(exp_folder, prefix+"-joints.pdf"))
         pp.savefig(fig)
         pp.close()
 
-        yje += ((x_joint[:, 7:] - y_joint[:, 7:])*3).abs().mean(dim=0)
-        zje += ((x_joint[:, 7:] - z_joint[:, 7:])*3).abs().mean(dim=0)
+        yje += ((x_joint[:, :7] - y_joint[:, :7])*3).abs().mean(dim=0)
+        zje += ((x_joint[:, :7] - z_joint[:, :7])*3).abs().mean(dim=0)
 
-        y_pixel_error = (utils.to_pixel(x_img[:, 3:]) - utils.to_pixel(y_img[:, 3:])).abs().mean()
-        z_pixel_error = (utils.to_pixel(x_img[:, 3:]) - utils.to_pixel(z_img[:, 3:])).abs().mean()
+        y_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(y_img[:, :3])).abs().mean()
+        z_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().mean()
         print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error))
 
-        x_cat = torch.cat([x_img[:, 3:], y_img[:, 3:]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(exp_folder, "both-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
-        x_cat = torch.cat([x_img[:, 3:], z_img[:, 3:]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(exp_folder, "both-forecast.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
+        x_cat = torch.cat([x_img[:, :3], y_img[:, :3]], dim=3).permute(0, 2, 3, 1)
+        torchvision.io.write_video(os.path.join(exp_folder, prefix+"-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
+        x_cat = torch.cat([x_img[:, :3], z_img[:, :3]], dim=3).permute(0, 2, 3, 1)
+        torchvision.io.write_video(os.path.join(exp_folder, prefix+"-forecast.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
+        x_diff = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().permute(0, 2, 3, 1)
+        torchvision.io.write_video(os.path.join(exp_folder, prefix+"-diff.mp4"), x_diff, fps=30)
 
 yje = np.degrees(yje/20)
 zje = np.degrees(zje/20)

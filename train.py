@@ -96,8 +96,9 @@ for e in range(opts["epoch"]):
             x_all = [x_img.to(dev), x_joint.to(dev)]
             xn_img, xn_joint = utils.noise_input(x_all, banned_modality=[0, 0], prob=[0., 1.], direction="forward")
             x_condition = [x_img[start_idx:(start_idx+1)].to(dev), x_joint[start_idx:(start_idx+1)].to(dev)]
-            x_condition[0][:, :3] = x_condition[0][:, 3:]
-            x_condition[1][:, :7] = x_condition[1][:, 7:]
+            # x[t+1] <- x[t]
+            x_condition[0][:, 3:] = x_condition[0][:, :3]
+            x_condition[1][:, 7:] = x_condition[1][:, :7]
 
             # one-step forward prediction
             _, _, (y_img, y_joint), _ = model([xn_img, xn_joint], sample=False)
@@ -112,9 +113,9 @@ for e in range(opts["epoch"]):
         fig, ax = plt.subplots(3, 2)
         for i in range(3):
             for j in range(2):
-                ax[i][j].plot(x_joint[:, i*2 + j + 7], c="k")
-                ax[i][j].plot(y_joint[:, i*2 + j + 7].cpu(), c="b")
-                ax[i][j].plot(z_joint[:, i*2 + j + 7].cpu(), c="m")
+                ax[i][j].plot(x_joint[:, i*2 + j], c="k")
+                ax[i][j].plot(y_joint[:, i*2 + j].cpu(), c="b")
+                ax[i][j].plot(z_joint[:, i*2 + j].cpu(), c="m")
                 ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j + 7], c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")

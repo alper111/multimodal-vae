@@ -51,8 +51,8 @@ for exp in range(20):
     x_all = [x_pos, x_joint]
     xn_pos, xn_joint = utils.noise_input(x_all, banned_mods, prob=[0., 1.], direction="forward", modality_noise=False)
     x_condition = [x_pos[start_idx:(start_idx+1)], x_joint[start_idx:(start_idx+1)]]
-    x_condition[0][:, :7] = x_condition[0][:, 7:]
-    x_condition[1][:, :7] = x_condition[1][:, 7:]
+    x_condition[0][:, 7:] = x_condition[0][:, :7]
+    x_condition[1][:, 7:] = x_condition[1][:, :7]
 
     with torch.no_grad():
         # one-step forward prediction
@@ -68,10 +68,10 @@ for exp in range(20):
         fig, ax = plt.subplots(3, 2, figsize=(12, 10))
         for i in range(3):
             for j in range(2):
-                ax[i][j].plot(x_joint[:, i*2 + j + 7] * 3, c="k")
-                ax[i][j].plot(y_joint[:, i*2 + j + 7] * 3, c="b")
-                ax[i][j].plot(z_joint[:, i*2 + j + 7] * 3, c="m")
-                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j + 7] * 3, c="r", marker="x")
+                ax[i][j].plot(x_joint[:, i*2 + j] * 3, c="k")
+                ax[i][j].plot(y_joint[:, i*2 + j] * 3, c="b")
+                ax[i][j].plot(z_joint[:, i*2 + j] * 3, c="m")
+                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j] * 3, c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
         pp = PdfPages(os.path.join(exp_folder, "both-joints.pdf"))
@@ -79,25 +79,25 @@ for exp in range(20):
         pp.close()
         plt.close()
 
-        yje += ((x_joint[:, 7:] - y_joint[:, 7:])*3).abs().mean(dim=0)
-        zje += ((x_joint[:, 7:] - z_joint[:, 7:])*3).abs().mean(dim=0)
+        yje += ((x_joint[:, :7] - y_joint[:, :7])*3).abs().mean(dim=0)
+        zje += ((x_joint[:, :7] - z_joint[:, :7])*3).abs().mean(dim=0)
 
         fig, ax = plt.subplots(3, 2, figsize=(12, 10))
         mapper = ["x", "y", "z", "rx", "ry", "rz"]
         for i in range(2):
             for j in range(3):
-                ax[j][i].plot(x_pos[:, i*3 + j + 7] * 3, c="k")
-                ax[j][i].plot(y_pos[:, i*3 + j + 7] * 3, c="b")
-                ax[j][i].plot(z_pos[:, i*3 + j + 7] * 3, c="m")
-                ax[j][i].scatter(start_idx, x_pos[start_idx, i*3 + j + 7] * 3, c="r", marker="x")
+                ax[j][i].plot(x_pos[:, i*3 + j] * 3, c="k")
+                ax[j][i].plot(y_pos[:, i*3 + j] * 3, c="b")
+                ax[j][i].plot(z_pos[:, i*3 + j] * 3, c="m")
+                ax[j][i].scatter(start_idx, x_pos[start_idx, i*3 + j] * 3, c="r", marker="x")
                 ax[j][i].set_ylabel("$%s$" % mapper[i*3+j])
                 ax[j][i].set_xlabel("Timesteps")
         pp = PdfPages(os.path.join(exp_folder, "both-pos.pdf"))
         pp.savefig(fig)
         pp.close()
         plt.close()
-        ype += ((x_pos[:, 7:] - y_pos[:, 7:])*3).abs().mean(dim=0)
-        zpe += ((x_pos[:, 7:] - z_pos[:, 7:])*3).abs().mean(dim=0)
+        ype += ((x_pos[:, :7] - y_pos[:, :7])*3).abs().mean(dim=0)
+        zpe += ((x_pos[:, :7] - z_pos[:, :7])*3).abs().mean(dim=0)
 
 yje = np.degrees(yje/20)
 zje = np.degrees(zje/20)
