@@ -194,12 +194,13 @@ class MultiVAE(torch.nn.Module):
 
         with torch.no_grad():
 
-            for _ in range(forward_t):
+            for t in range(forward_t):
                 x_noised = utils.noise_input(x, banned_modality=banned_modality, prob=[0.0, 1.0], direction="forward")
                 _, _, x, _ = self.forward(x_noised, sample=False)
                 for i in range(D):
                     x[i].clamp_(-1.0, 1.0)
                     trajectory[i].append(x[i].clone())
+                    # x[t] <- x[t+1]
                     x[i][:, :dims[i]] = x[i][:, dims[i]:]
 
             x = [trajectory[0][0], trajectory[1][0]]
@@ -209,7 +210,20 @@ class MultiVAE(torch.nn.Module):
                 for i in range(D):
                     x[i].clamp_(-1.0, 1.0)
                     trajectory[i].insert(0, x[i].clone())
+                    # x[t+1] <- x[t]
                     x[i][:, dims[i]:] = x[i][:, :dims[i]]
+
+            # interpolation on conditioned point
+            for i in range(D):
+                back_pred = trajectory[i][backward_t-1][:, dims[i]:]
+                forward_pred = trajectory[i][backward_t+1][:, :dims[i]]
+                trajectory[i][backward_t][:, :dims[i]] = (back_pred+forward_pred)/2
+                trajectory[i][backward_t][:, dims[i]:] = (back_pred+forward_pred)/2
+
+            # x[t] <- x[t+1] for forward steps
+            for t in range(forward_t):
+                for i in range(D):
+                    trajectory[i][backward_t+1][:, :dims[i]] = trajectory[i][backward_t+1][:, dims[i]:]
 
         for i in range(D):
             trajectory[i] = torch.cat(trajectory[i], dim=0)
