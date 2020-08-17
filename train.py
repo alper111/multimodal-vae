@@ -116,7 +116,7 @@ for e in range(opts["epoch"]):
                 ax[i][j].plot(x_joint[:, i*2 + j], c="k")
                 ax[i][j].plot(y_joint[:, i*2 + j].cpu(), c="b")
                 ax[i][j].plot(z_joint[:, i*2 + j].cpu(), c="m")
-                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j + 7], c="r", marker="x")
+                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j], c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
         pp = PdfPages(os.path.join(opts["save"], "joints_recons%d.pdf" % (e+1)))
