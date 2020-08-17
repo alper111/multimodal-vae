@@ -84,6 +84,7 @@ for exp in range(20):
         y_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(y_img[:, :3])).abs().mean()
         z_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().mean()
         print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error))
+        print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 
         x_cat = torch.cat([x_img[:, :3], y_img[:, :3]], dim=3).permute(0, 2, 3, 1)
         torchvision.io.write_video(os.path.join(exp_folder, prefix+"-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
@@ -95,4 +96,6 @@ for exp in range(20):
 yje = np.degrees(yje/20)
 zje = np.degrees(zje/20)
 print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]))
+print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]))
+print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))

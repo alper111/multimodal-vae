@@ -3,7 +3,6 @@ import os
 import argparse
 import yaml
 import torch
-import torchvision
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
@@ -105,6 +104,10 @@ zje = np.degrees(zje/20)
 ype = (ype/20)
 zpe = (zpe/20)
 print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]))
+print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]))
+print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 print("onestep position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (ype[0], ype[1], ype[2], ype[3], ype[4], ype[5]))
+print("onestep position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (ype[0], ype[1], ype[2], ype[3], ype[4], ype[5]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 print("forecast position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zpe[0], zpe[1], zpe[2], zpe[3], zpe[4], zpe[5]))
+print("forecast position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zpe[0], zpe[1], zpe[2], zpe[3], zpe[4], zpe[5]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
