@@ -1,7 +1,6 @@
 """Dataset definitions."""
 import os
 import torch
-import torchvision.transforms as transforms
 import numpy as np
 
 
@@ -38,10 +37,10 @@ class UR10Dataset(torch.utils.data.Dataset):
             self.data.append(temp)
 
         if len(action) < 2:
-            self.ranges = np.load(os.path.join(path, "%s_%s_ranges.npy" % (action[0], mode)))
+            self.ranges = np.load(os.path.join(path, "%s_%s_range.npy" % (action[0], mode)))
         else:
-            ranges1 = np.load(os.path.join(path, "%s_%s_ranges.npy" % (action[0], mode)))
-            ranges2 = np.load(os.path.join(path, "%s_%s_ranges.npy" % (action[1], mode)))
+            ranges1 = np.load(os.path.join(path, "%s_%s_range.npy" % (action[0], mode)))
+            ranges2 = np.load(os.path.join(path, "%s_%s_range.npy" % (action[1], mode)))
             self.ranges = []
             it = 0
             for start, end in ranges1:
