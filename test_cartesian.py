@@ -33,6 +33,7 @@ print(model)
 
 out_folder = os.path.join(opts["save"], "outs")
 banned_mods = [0, 0]
+prefix = "both"
 yje = torch.zeros(7)
 zje = torch.zeros(7)
 ype = torch.zeros(7)
@@ -74,7 +75,7 @@ for exp in range(20):
                 ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j] * 3, c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
-        pp = PdfPages(os.path.join(exp_folder, "both-joints.pdf"))
+        pp = PdfPages(os.path.join(exp_folder, prefix+"-joints.pdf"))
         pp.savefig(fig)
         pp.close()
         plt.close()
@@ -92,7 +93,7 @@ for exp in range(20):
                 ax[j][i].scatter(start_idx, x_pos[start_idx, i*3 + j] * 3, c="r", marker="x")
                 ax[j][i].set_ylabel("$%s$" % mapper[i*3+j])
                 ax[j][i].set_xlabel("Timesteps")
-        pp = PdfPages(os.path.join(exp_folder, "both-pos.pdf"))
+        pp = PdfPages(os.path.join(exp_folder, prefix+"-pos.pdf"))
         pp.savefig(fig)
         pp.close()
         plt.close()
