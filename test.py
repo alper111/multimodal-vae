@@ -33,8 +33,8 @@ print(model)
 
 out_folder = os.path.join(opts["save"], "outs")
 banned_mods = [0, 0]
-yje = torch.zeros(6)
-zje = torch.zeros(6)
+yje = torch.zeros(7)
+zje = torch.zeros(7)
 
 for exp in range(20):
     exp_folder = os.path.join(out_folder, str(exp))
@@ -50,7 +50,7 @@ for exp in range(20):
     xn_img, xn_joint = utils.noise_input(x_all, banned_mods, prob=[0., 1.], direction="forward", modality_noise=False)
     x_condition = [x_img[start_idx:(start_idx+1)], x_joint[start_idx:(start_idx+1)]]
     x_condition[0][:, :3] = x_condition[0][:, 3:]
-    x_condition[1][:, :6] = x_condition[1][:, 6:]
+    x_condition[1][:, :7] = x_condition[1][:, 7:]
 
     with torch.no_grad():
         # one-step forward prediction
@@ -66,18 +66,18 @@ for exp in range(20):
         fig, ax = plt.subplots(3, 2, figsize=(12, 10))
         for i in range(3):
             for j in range(2):
-                ax[i][j].plot(x_joint[:, i*2 + j + 6], c="k")
-                ax[i][j].plot(y_joint[:, i*2 + j + 6], c="b")
-                ax[i][j].plot(z_joint[:, i*2 + j + 6], c="m")
-                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j + 6], c="r", marker="x")
+                ax[i][j].plot(x_joint[:, i*2 + j + 7] * 3, c="k")
+                ax[i][j].plot(y_joint[:, i*2 + j + 7] * 3, c="b")
+                ax[i][j].plot(z_joint[:, i*2 + j + 7] * 3, c="m")
+                ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j + 7] * 3, c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
         pp = PdfPages(os.path.join(exp_folder, "both-joints.pdf"))
         pp.savefig(fig)
         pp.close()
 
-        yje += ((x_joint[:, 6:] - y_joint[:, 6:])*3).abs().mean(dim=0)
-        zje += ((x_joint[:, 6:] - z_joint[:, 6:])*3).abs().mean(dim=0)
+        yje += ((x_joint[:, 7:] - y_joint[:, 7:])*3).abs().mean(dim=0)
+        zje += ((x_joint[:, 7:] - z_joint[:, 7:])*3).abs().mean(dim=0)
 
         y_pixel_error = (utils.to_pixel(x_img[:, 3:]) - utils.to_pixel(y_img[:, 3:])).abs().mean()
         z_pixel_error = (utils.to_pixel(x_img[:, 3:]) - utils.to_pixel(z_img[:, 3:])).abs().mean()
@@ -90,5 +90,5 @@ for exp in range(20):
 
 yje = np.degrees(yje/20)
 zje = np.degrees(zje/20)
-print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5]))
-print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5]))
+print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]))
+print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]))
