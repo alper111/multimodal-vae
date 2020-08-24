@@ -36,16 +36,21 @@ banned_mods = [0, 0]
 prefix = "both"
 yje = torch.zeros(7)
 zje = torch.zeros(7)
+ype = 0.0
+zpe = 0.0
+N = 10
 
-for exp in range(20):
+condition_idx = [47, 47, 73, 40, 41, 66, 61, 58, 60, 41]
+
+for exp in range(N):
     exp_folder = os.path.join(out_folder, str(exp))
     if not os.path.exists(exp_folder):
         os.makedirs(exp_folder)
 
     x_img, x_joint = testset.get_trajectory(exp)
-    N = x_img.shape[0]
-    start_idx = int(0.5 * N)
-    forward_t = N - start_idx - 1
+    L = x_img.shape[0]
+    start_idx = condition_idx[exp]
+    forward_t = L - start_idx - 1
     backward_t = start_idx
     x_all = [x_img, x_joint]
     xn_img, xn_joint = utils.noise_input(x_all, banned_mods, prob=[0., 1.], direction="forward", modality_noise=False)
@@ -83,6 +88,8 @@ for exp in range(20):
 
         y_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(y_img[:, :3])).abs().mean()
         z_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().mean()
+        ype += y_pixel_error
+        zpe += z_pixel_error
         print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error))
         print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 
@@ -93,8 +100,15 @@ for exp in range(20):
         x_diff = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().permute(0, 2, 3, 1)
         torchvision.io.write_video(os.path.join(exp_folder, prefix+"-diff.mp4"), x_diff, fps=30)
 
-yje = np.degrees(yje/20)
-zje = np.degrees(zje/20)
+yje = np.degrees(yje/N)
+zje = np.degrees(zje/N)
+ype = ype / N
+zpe = zpe / N
+
+print("onestep pixel error: %.4f" % ype)
+print("onestep pixel error: %.4f" % ype, file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
+print("forecast pixel error: %.4f" % zpe)
+print("forecast pixel error: %.4f" % zpe, file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]))
 print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]))

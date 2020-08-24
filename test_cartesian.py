@@ -37,16 +37,19 @@ yje = torch.zeros(7)
 zje = torch.zeros(7)
 ype = torch.zeros(7)
 zpe = torch.zeros(7)
+N = 10
 
-for exp in range(20):
+condition_idx = [47, 47, 73, 40, 41, 66, 61, 58, 60, 41]
+
+for exp in range(N):
     exp_folder = os.path.join(out_folder, str(exp))
     if not os.path.exists(exp_folder):
         os.makedirs(exp_folder)
 
     x_pos, x_joint = testset.get_trajectory(exp)
-    N = x_pos.shape[0]
-    start_idx = int(0.5 * N)
-    forward_t = N - start_idx - 1
+    L = x_pos.shape[0]
+    start_idx = condition_idx[exp]
+    forward_t = L - start_idx - 1
     backward_t = start_idx
     x_all = [x_pos, x_joint]
     xn_pos, xn_joint = utils.noise_input(x_all, banned_mods, prob=[0., 1.], direction="forward", modality_noise=False)
@@ -99,10 +102,10 @@ for exp in range(20):
         ype += ((x_pos[:, :7] - y_pos[:, :7])*3).abs().mean(dim=0)
         zpe += ((x_pos[:, :7] - z_pos[:, :7])*3).abs().mean(dim=0)
 
-yje = np.degrees(yje/20)
-zje = np.degrees(zje/20)
-ype = (ype/20)
-zpe = (zpe/20)
+yje = np.degrees(yje/N)
+zje = np.degrees(zje/N)
+ype = (ype/N)
+zpe = (zpe/N)
 print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]))
 print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
 print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]))
