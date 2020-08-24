@@ -31,7 +31,10 @@ print(yaml.dump(opts))
 logdir = os.path.join(opts["save"], "log")
 writer = SummaryWriter(logdir)
 
-trainset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="train")
+idx = torch.randperm(40)[:opts["traj_count"]].tolist()
+val_cnd = [71, 40, 67, 56, 58, 56, 50, 79, 50, 53]
+
+trainset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="train", traj_list=idx)
 valset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="val")
 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts["batch_size"], shuffle=True)
@@ -88,9 +91,10 @@ for e in range(opts["epoch"]):
     if (e+1) % 20 == 0:
         model.save(opts["save"], "multivae_%d" % (e+1))
         with torch.no_grad():
-            x_img, x_joint = valset.get_trajectory(np.random.randint(0, 1))
+            val_idx = np.random.randint(0, 10)
+            x_img, x_joint = valset.get_trajectory(val_idx)
             N = x_img.shape[0]
-            start_idx = int(0.5 * N)
+            start_idx = val_cnd[val_idx]
             forward_t = N - start_idx - 1
             backward_t = start_idx
             x_all = [x_img.to(dev), x_joint.to(dev)]
