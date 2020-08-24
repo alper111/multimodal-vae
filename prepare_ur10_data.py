@@ -26,8 +26,8 @@ action_iters = [0, 0]
 modality = ["img", "joint", "endpoint", "object"]  # first modality is always image.
 splits = ["train", "val", "test"]
 N = 50
-train_split_idx = 32
-val_split_idx = 40
+train_split_idx = 40
+val_split_idx = 45
 data_dict = {}
 
 for it, action in enumerate(actions):
