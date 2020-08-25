@@ -13,6 +13,8 @@ import utils
 
 parser = argparse.ArgumentParser("Test multimodal VAE.")
 parser.add_argument("-opts", help="option file", type=str, required=True)
+parser.add_argument("-banned", help="banned modalities", nargs="+", type=int, required=True)
+parser.add_argument("-prefix", help="output prefix", type=str, required=True)
 args = parser.parse_args()
 
 opts = yaml.safe_load(open(args.opts, "r"))
@@ -27,13 +29,11 @@ model = models.MultiVAE(
     out_blocks=opts["out_blocks"],
     init=opts["init_method"])
 model.to(opts["device"])
-model.load(opts["save"], "multivae_last")
+model.load(opts["save"], "multivae_best")
 model.cpu().eval()
 print(model)
 
 out_folder = os.path.join(opts["save"], "outs")
-banned_mods = [0, 0]
-prefix = "both"
 yje = torch.zeros(7)
 zje = torch.zeros(7)
 ype = 0.0
@@ -53,7 +53,7 @@ for exp in range(N):
     forward_t = L - start_idx - 1
     backward_t = start_idx
     x_all = [x_img, x_joint]
-    xn_img, xn_joint = utils.noise_input(x_all, banned_mods, prob=[0., 1.], direction="forward", modality_noise=False)
+    xn_img, xn_joint = utils.noise_input(x_all, args.banned, prob=[0., 1.], direction="forward", modality_noise=False)
     x_condition = [x_img[start_idx:(start_idx+1)], x_joint[start_idx:(start_idx+1)]]
     # x[t+1] <- x[t]
     x_condition[0][:, 3:] = x_condition[0][:, :3]
@@ -63,7 +63,7 @@ for exp in range(N):
         # one-step forward prediction
         _, _, (y_img, y_joint), _ = model([xn_img, xn_joint], sample=False)
         # forecasting
-        z_img, z_joint = model.forecast(x_condition, forward_t, backward_t, banned_modality=banned_mods)
+        z_img, z_joint = model.forecast(x_condition, forward_t, backward_t, banned_modality=args.banned)
 
         y_img.clamp_(-1., 1.)
         y_joint.clamp_(-1., 1.)
@@ -79,7 +79,7 @@ for exp in range(N):
                 ax[i][j].scatter(start_idx, x_joint[start_idx, i*2 + j] * 3, c="r", marker="x")
                 ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
                 ax[i][j].set_xlabel("Timesteps")
-        pp = PdfPages(os.path.join(exp_folder, prefix+"-joints.pdf"))
+        pp = PdfPages(os.path.join(exp_folder, args.prefix+"-joints.pdf"))
         pp.savefig(fig)
         pp.close()
 
@@ -90,26 +90,21 @@ for exp in range(N):
         z_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().mean()
         ype += y_pixel_error
         zpe += z_pixel_error
-        print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error))
-        print("Exp: %d, onestep pixel error: %.4f, forecast pixel error: %.4f" % (exp, y_pixel_error, z_pixel_error), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
+        print("%.4f, %.4f" % (y_pixel_error, z_pixel_error), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
 
         x_cat = torch.cat([x_img[:, :3], y_img[:, :3]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(exp_folder, prefix+"-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
+        torchvision.io.write_video(os.path.join(exp_folder, args.prefix+"-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
         x_cat = torch.cat([x_img[:, :3], z_img[:, :3]], dim=3).permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(exp_folder, prefix+"-forecast.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
+        torchvision.io.write_video(os.path.join(exp_folder, args.prefix+"-forecast.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
         x_diff = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().permute(0, 2, 3, 1)
-        torchvision.io.write_video(os.path.join(exp_folder, prefix+"-diff.mp4"), x_diff, fps=30)
+        torchvision.io.write_video(os.path.join(exp_folder, args.prefix+"-diff.mp4"), x_diff, fps=30)
 
 yje = np.degrees(yje/N)
 zje = np.degrees(zje/N)
 ype = ype / N
 zpe = zpe / N
 
-print("onestep pixel error: %.4f" % ype)
-print("onestep pixel error: %.4f" % ype, file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
-print("forecast pixel error: %.4f" % zpe)
-print("forecast pixel error: %.4f" % zpe, file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
-print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]))
-print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], yje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
-print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]))
-print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], zje[6]), file=open(os.path.join(out_folder, prefix+"-result.txt"), "a"))
+print("%.4f" % ype, file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("%.4f" % zpe, file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], np.radians(yje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], np.radians(zje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
