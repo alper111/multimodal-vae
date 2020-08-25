@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-N = 3
+N = 5
 trajs = list(range(1, 41))
 modality = ["both", "img", "joint"]
 T = len(trajs)
@@ -22,7 +22,7 @@ for m in modality:
         zpe = np.zeros(N)
         yje = np.zeros((N, 7))
         zje = np.zeros((N, 7))
-        for j in range(3):
+        for j in range(N):
             file = open("save/imgjoint-%d-%d/outs/%s-result.txt" % (t, j, m), "r")
             lines = file.readlines()
 
