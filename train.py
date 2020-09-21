@@ -3,12 +3,8 @@ import os
 import time
 import argparse
 import yaml
-import numpy as np
 import torch
-import torchvision
 from torch.utils.tensorboard import SummaryWriter
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 import models
 import data
 import utils
