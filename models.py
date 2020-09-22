@@ -119,7 +119,7 @@ class MultiVAE(torch.nn.Module):
             begin += out_slice[i]
         return mu, logstd, out_mu, out_logstd
 
-    def loss(self, x, y, sample=True, lambd=1.0, beta=1.0):
+    def loss(self, x, y, sample=True, lambd=1.0, beta=1.0, reduce=True):
         """
         Compute ELBO.
 
@@ -145,8 +145,10 @@ class MultiVAE(torch.nn.Module):
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
         z_std = torch.exp(z_logstd)
         z_dist = torch.distributions.Normal(z_mu, z_std)
-        # kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
-        kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).mean()
+        if reduce:
+            kl_loss = torch.distributins.kl_divergence(z_dist, self.prior).mean()
+        else:
+            kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
 
         recon_loss = 0.0
         for x_m, x_s, y_m in zip(o_mu, o_logstd, y):
@@ -155,9 +157,11 @@ class MultiVAE(torch.nn.Module):
             y_m = y_m.reshape(y_m.shape[0], -1)
             x_std = torch.exp(x_s)
             x_dist = torch.distributions.Normal(x_m, x_std)
-            # recon_loss += (-x_dist.log_prob(y_m).sum(dim=1))
-            recon_loss += (-x_dist.log_prob(y_m).mean())
-        # recon_loss = recon_loss.mean()
+            if reduce:
+                recon_loss += (-x_dist.log_prob(y_m).mean())
+            else:
+                recon_loss += (-x_dist.log_prob(y_m).sum(dim=1).mean())
+
         recon_loss /= len(y)
         loss = lambd * recon_loss + beta * kl_loss
         return loss
@@ -179,7 +183,7 @@ class MultiVAE(torch.nn.Module):
             if reduce:
                 recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").mean()
             else:
-                recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").sum(dim=1)
+                recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").sum(dim=1).mean()
         recon_loss /= len(y)
 
         return (lambd * recon_loss + beta * kl_loss).mean()
