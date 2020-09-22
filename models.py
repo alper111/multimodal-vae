@@ -119,7 +119,7 @@ class MultiVAE(torch.nn.Module):
             begin += out_slice[i]
         return mu, logstd, out_mu, out_logstd
 
-    def loss(self, x, y, sample=True, lambd=1.0, beta=1.0, reduce=True):
+    def loss(self, x, y, lambd=1.0, beta=1.0, sample=True, reduce=True, mse=False):
         """
         Compute ELBO.
 
@@ -129,44 +129,26 @@ class MultiVAE(torch.nn.Module):
             Prediction tensor.
         y : list of torch.Tensor
             Target tensor.
-        sample : bool
-            In forward pass, sampling is done from the latent distribution if
-            set true. Otherwise mean of the distribution is used.
         lambd : float, optional
             Coefficient of reconstruction loss.
         beta : float, optional
             Coefficient of KL divergence.
+        sample : bool, optional
+            In forward pass, sampling is done from the latent distribution if
+            set true. Otherwise mean of the distribution is used.
+        reduce : bool, optional
+            If set to true, the loss is summed across the feature dimension.
+            Otherwise, the loss is averaged across the feature dimension.
+        mse : bool, optional
+            If set to true, the original VAE loss is used in reconstruction
+            (i.e. std=1.0). Otherwise, log-std is also predicted and NLL is
+            calculated and minimized with the predicted std.
 
         Returns
         -------
         loss : torch.Tensor
             Total loss (evidence lower bound).
         """
-        z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
-        z_std = torch.exp(z_logstd)
-        z_dist = torch.distributions.Normal(z_mu, z_std)
-        if reduce:
-            kl_loss = torch.distributins.kl_divergence(z_dist, self.prior).mean()
-        else:
-            kl_loss = torch.distributions.kl_divergence(z_dist, self.prior).sum(dim=1).mean()
-
-        recon_loss = 0.0
-        for x_m, x_s, y_m in zip(o_mu, o_logstd, y):
-            x_m = x_m.reshape(x_m.shape[0], -1)
-            x_s = x_s.reshape(x_s.shape[0], -1)
-            y_m = y_m.reshape(y_m.shape[0], -1)
-            x_std = torch.exp(x_s)
-            x_dist = torch.distributions.Normal(x_m, x_std)
-            if reduce:
-                recon_loss += (-x_dist.log_prob(y_m).mean())
-            else:
-                recon_loss += (-x_dist.log_prob(y_m).sum(dim=1).mean())
-
-        recon_loss /= len(y)
-        loss = lambd * recon_loss + beta * kl_loss
-        return loss
-
-    def mse_loss(self, x, y, sample=True, lambd=1.0, beta=1.0, reduce=False):
         z_mu, z_logstd, o_mu, o_logstd = self.forward(x, sample)
         z_std = torch.exp(z_logstd)
         z_dist = torch.distributions.Normal(z_mu, z_std)
@@ -177,16 +159,25 @@ class MultiVAE(torch.nn.Module):
             kl_loss = kl_loss.sum(dim=1).mean()
 
         recon_loss = 0.0
-        for x_m, y_m in zip(o_mu, y):
+        for x_m, x_s, y_m in zip(o_mu, o_logstd, y):
             x_m = x_m.reshape(x_m.shape[0], -1)
+            x_s = x_s.reshape(x_s.shape[0], -1)
             y_m = y_m.reshape(y_m.shape[0], -1)
-            if reduce:
-                recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").mean()
+            if mse:
+                modal_loss = torch.nn.functional.mse_loss(x_m, y_m, reduction="none")
             else:
-                recon_loss += torch.nn.functional.mse_loss(x_m, y_m, reduction="none").sum(dim=1).mean()
-        recon_loss /= len(y)
+                x_std = torch.exp(x_s)
+                x_dist = torch.distributions.Normal(x_m, x_std)
+                modal_loss = -x_dist.log_prob(y_m)
 
-        return (lambd * recon_loss + beta * kl_loss).mean()
+            if reduce:
+                recon_loss += modal_loss.mean()
+            else:
+                recon_loss += modal_loss.sum(dim=1).mean()
+
+        recon_loss /= len(y)
+        loss = lambd * recon_loss + beta * kl_loss
+        return loss
 
     def forecast(self, x, forward_t, backward_t, banned_modality):
         D = len(x)

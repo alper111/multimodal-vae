@@ -51,6 +51,7 @@ optimizer = torch.optim.Adam(lr=opts["lr"], params=model.parameters(), amsgrad=T
 print(model)
 print("Parameter count:", utils.get_parameter_count(model))
 best_error = 1e5
+BETA = opts["beta"]
 
 for e in range(opts["epoch"]):
     running_avg = 0.0
@@ -63,20 +64,20 @@ for e in range(opts["epoch"]):
         x_noised = utils.noise_input(x_all, banned_modality=[0, 0], prob=[0.5, 0.5, 0.5],
                                      direction="both", modality_noise=True)
 
-        loss = model.mse_loss(x_noised, x_all, lambd=opts["lambda"], beta=opts["beta"], sample=False, reduce=True)
+        loss = model.loss(x_noised, x_all, lambd=opts["lambda"], beta=BETA, reduce=opts["reduce"], mse=opts["mse"])
         loss.backward()
         optimizer.step()
         running_avg += loss.item()
-
         del x_all[:], x_noised[:]
 
     running_avg /= (i+1)
+    BETA = BETA * opts["beta_decay"]
     with torch.no_grad():
         x_val_plain = utils.noise_input(x_val_all, banned_modality=[0, 0], prob=[1.0, 0.0])
         x_val_noised = utils.noise_input(x_val_all, banned_modality=[0, 0], prob=[0.0, 0.5, 0.5],
                                          direction="both", modality_noise=True)
-        mse_val = model.mse_loss(x_val_plain, x_val_all, sample=False, beta=0.0, reduce=True)
-        mse_val_noised = model.mse_loss(x_val_noised, x_val_all, sample=False, beta=0.0, reduce=True)
+        mse_val = model.loss(x_val_plain, x_val_all, lambd=1.0, beta=0.0, sample=False, reduce=True, mse=True)
+        mse_val_noised = model.loss(x_val_noised, x_val_all, lambd=1.0, beta=0.0, sample=False, reduce=True, mse=True)
 
     del x_val_plain[:], x_val_noised[:]
 
