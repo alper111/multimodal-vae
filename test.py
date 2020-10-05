@@ -40,7 +40,7 @@ ype = 0.0
 zpe = 0.0
 N = 10
 
-condition_idx = [47, 47, 73, 40, 41, 66, 61, 58, 60, 41]
+condition_idx = [68, 30, 60, 35, 72, 45, 61, 35, 43, 48]
 
 for exp in range(N):
     exp_folder = os.path.join(out_folder, str(exp))
