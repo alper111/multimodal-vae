@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +21,7 @@ def return_split(i, splits):
         return splits[2]
 
 
-data_path = "data/ur10"
+data_path = sys.argv[1]
 actions = ["grasp", "move"]
 action_iters = [0, 0]
 modality = ["img", "joint", "endpoint", "object"]  # first modality is always image.
