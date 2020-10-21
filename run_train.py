@@ -15,6 +15,9 @@ for i in range(N):
         opts["beta"] = 0.0
         opts["init_method"] = "xavier"
         opts["lr"] = 0.001
+        opts["reduce"] = True
+        opts["mse"] = True
+        opts["beta_decay"] = 0.0
         opts["in_blocks"] = [
             [-2, 1024, 128, 6, 32, 64, 64, 128, 128, 256],
             [-1, 14, 32, 64, 64, 128, 128, 256, 128]
