@@ -12,6 +12,7 @@ import utils
 
 parser = argparse.ArgumentParser("Train multimodal VAE.")
 parser.add_argument("-opts", help="option file", type=str, required=True)
+parser.add_argument("-mod", help="modality. img or endpoint.", type=str, required=True)
 args = parser.parse_args()
 
 opts = yaml.safe_load(open(args.opts, "r"))
@@ -30,8 +31,8 @@ writer = SummaryWriter(logdir)
 idx = torch.randperm(40)[:opts["traj_count"]].tolist()
 val_cnd = [71, 40, 67, 56, 58, 56, 50, 79, 50, 53]
 
-trainset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="train", traj_list=idx)
-valset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="val")
+trainset = data.UR10Dataset("data", modality=[args.mod, "joint"], action=["grasp", "move"], mode="train", traj_list=idx)
+valset = data.UR10Dataset("data", modality=[args.mod, "joint"], action=["grasp", "move"], mode="val")
 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts["batch_size"], shuffle=True)
 valloader = torch.utils.data.DataLoader(valset, batch_size=10000, shuffle=False)
