@@ -32,7 +32,7 @@ for i in range(N):
         yaml.dump(opts, file)
         file.close()
         print("Started training with %d trajectories, #%d" % (s, i))
-        os.system("python train.py -opts opts-trainjob.yml")
+        os.system("python train.py -opts opts-trainjob.yml -mod img")
         os.system("python test.py -opts save/imgjoint-%d-%d/opts.yaml -banned 0 0 -prefix both" % (s, i))
         os.system("python test.py -opts save/imgjoint-%d-%d/opts.yaml -banned 0 1 -prefix img" % (s, i))
         os.system("python test.py -opts save/imgjoint-%d-%d/opts.yaml -banned 1 0 -prefix joint" % (s, i))
