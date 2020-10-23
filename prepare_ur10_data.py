@@ -20,6 +20,8 @@ def return_split(i, splits):
     else:
         return splits[2]
 
+if not os.path.exists("data"):
+    os.makedirs("data")
 
 data_path = sys.argv[1]
 actions = ["grasp", "move"]
