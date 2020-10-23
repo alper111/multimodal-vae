@@ -20,6 +20,7 @@ def return_split(i, splits):
     else:
         return splits[2]
 
+
 if not os.path.exists("data"):
     os.makedirs("data")
 
@@ -76,7 +77,7 @@ for action in actions:
     for s in splits:
         for mod in modality:
             if mod == modality[0]:
-                data_dict[action][s][mod] = torch.stack(data_dict[action][s][mod], dim=0).permute(0, 3, 1, 2)
+                data_dict[action][s][mod] = torch.stack(data_dict[action][s][mod], dim=0).permute(0, 3, 1, 2).contiguous()
             else:
                 data_dict[action][s][mod] = torch.cat(data_dict[action][s][mod], dim=0)
             torch.save(data_dict[action][s][mod], "data/%s_%s_%s.pt" % (action, s, mod))
