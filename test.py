@@ -38,6 +38,10 @@ yje = torch.zeros(7)
 zje = torch.zeros(7)
 ype = 0.0
 zpe = 0.0
+
+k_step_joint = torch.zeros(10, 7)
+k_step_pixel = torch.zeros(10)
+
 N = 10
 
 condition_idx = [68, 30, 60, 35, 72, 45, 61, 35, 43, 48]
@@ -62,6 +66,16 @@ for exp in range(N):
     with torch.no_grad():
         # one-step forward prediction
         _, _, (y_img, y_joint), _ = model([xn_img, xn_joint], sample=False)
+
+        # k-step forward prediction
+        for k in range(10):
+            _, _, (xn_img, xn_joint), _ = model([xn_img, xn_joint], sample=False)
+            k_step_joint[k] = ((x_joint[k:, 7:] - xn_joint[:, 7:])*3).abs().mean(dim=0)
+            k_step_pixel[k] = (utils.to_pixel(x_img[k:, 3:]) - utils.to_pixel(xn_img[:, 3:])).abs().mean()
+            xn_img[:, :3] = xn_img[:, 3:]
+            xn_joint[:, :7] = xn_joint[:, 7:]
+            xn_img, xn_joint = utils.noise_input([xn_img[:-1], xn_joint[:-1]], args.banned, prob=[0., 1.], direction="forward", modality_noise=False)
+
         # forecasting
         z_img, z_joint = model.forecast(x_condition, forward_t, backward_t, banned_modality=args.banned)
 
@@ -108,3 +122,6 @@ print("%.4f" % ype, file=open(os.path.join(out_folder, args.prefix+"-result.txt"
 print("%.4f" % zpe, file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
 print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], np.radians(yje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
 print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], np.radians(zje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+
+print(k_step_pixel)
+print(k_step_joint)
