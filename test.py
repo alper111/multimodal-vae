@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser("Test multimodal VAE.")
 parser.add_argument("-opts", help="option file", type=str, required=True)
 parser.add_argument("-banned", help="banned modalities", nargs="+", type=int, required=True)
 parser.add_argument("-prefix", help="output prefix", type=str, required=True)
+parser.add_argument("-kstep", help="optional kstep calculation.", type=int, default=0)
 args = parser.parse_args()
 
 opts = yaml.safe_load(open(args.opts, "r"))
@@ -34,6 +35,8 @@ model.cpu().eval()
 print(model)
 
 out_folder = os.path.join(opts["save"], "outs")
+outfile = open(os.path.join(out_folder, args.prefix+"-result.txt"), "a")
+
 yje = torch.zeros(7)
 zje = torch.zeros(7)
 ype = 0.0
@@ -68,15 +71,16 @@ for exp in range(N):
         _, _, (y_img, y_joint), _ = model([xn_img, xn_joint], sample=False)
 
         # k-step forward prediction
-        for k in range(10):
-            _, _, (xn_img, xn_joint), _ = model([xn_img, xn_joint], sample=False)
-            xn_img.clamp_(-1., 1.)
-            xn_joint.clamp_(-1., 1.)
-            k_step_joint[exp, k] = ((x_joint[k:, 7:] - xn_joint[:, 7:])*3).abs().mean(dim=0)
-            k_step_pixel[exp, k] = (utils.to_pixel(x_img[k:, 3:]) - utils.to_pixel(xn_img[:, 3:])).abs().mean()
-            xn_img[:, :3] = xn_img[:, 3:]
-            xn_joint[:, :7] = xn_joint[:, 7:]
-            xn_img, xn_joint = utils.noise_input([xn_img[:-1], xn_joint[:-1]], args.banned, prob=[0., 1.], direction="forward", modality_noise=False)
+        if args.kstep == 1:
+            for k in range(10):
+                _, _, (xn_img, xn_joint), _ = model([xn_img, xn_joint], sample=False)
+                xn_img.clamp_(-1., 1.)
+                xn_joint.clamp_(-1., 1.)
+                k_step_joint[exp, k] = ((x_joint[k:, 7:] - xn_joint[:, 7:])*3).abs().mean(dim=0)
+                k_step_pixel[exp, k] = (utils.to_pixel(x_img[k:, 3:]) - utils.to_pixel(xn_img[:, 3:])).abs().mean()
+                xn_img[:, :3] = xn_img[:, 3:]
+                xn_joint[:, :7] = xn_joint[:, 7:]
+                xn_img, xn_joint = utils.noise_input([xn_img[:-1], xn_joint[:-1]], args.banned, prob=[0., 1.], direction="forward", modality_noise=False)
 
         # forecasting
         z_img, z_joint = model.forecast(x_condition, forward_t, backward_t, banned_modality=args.banned)
@@ -106,7 +110,7 @@ for exp in range(N):
         z_pixel_error = (utils.to_pixel(x_img[:, :3]) - utils.to_pixel(z_img[:, :3])).abs().mean()
         ype += y_pixel_error
         zpe += z_pixel_error
-        print("%.4f, %.4f" % (y_pixel_error, z_pixel_error), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+        print("%.4f, %.4f" % (y_pixel_error, z_pixel_error), file=outfile)
 
         x_cat = torch.cat([x_img[:, :3], y_img[:, :3]], dim=3).permute(0, 2, 3, 1)
         torchvision.io.write_video(os.path.join(exp_folder, args.prefix+"-onestep.mp4"), utils.to_pixel(x_cat).byte(), fps=30)
@@ -120,10 +124,14 @@ zje = np.degrees(zje/N)
 ype = ype / N
 zpe = zpe / N
 
-print("%.4f" % ype, file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
-print("%.4f" % zpe, file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
-print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], np.radians(yje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
-print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], np.radians(zje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("%.4f" % ype, file=outfile)
+print("%.4f" % zpe, file=outfile)
+print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], np.radians(yje[6])/30), file=outfile)
+print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], np.radians(zje[6])/30), file=outfile)
 
-print(k_step_pixel.mean(dim=0))
-print(k_step_joint.mean(dim=0))
+if args.kstep == 1:
+    k_step_joint[:, :, :6] = np.degrees(k_step_joint[:, :, :6])
+    k_step_joint[:, :, 6] = k_step_joint[:, :, 6] / 30
+    print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(k_step_pixel.mean(dim=0)), file=outfile)
+    print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(k_step_joint.mean([0, 2])), file=outfile)
+outfile.close()
