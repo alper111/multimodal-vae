@@ -35,6 +35,8 @@ model.cpu().eval()
 print(model)
 
 out_folder = os.path.join(opts["save"], "outs")
+if not os.path.exists(out_folder):
+    os.makedirs(out_folder)
 outfile = open(os.path.join(out_folder, args.prefix+"-result.txt"), "a")
 
 yje = torch.zeros(7)
