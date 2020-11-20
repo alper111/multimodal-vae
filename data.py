@@ -64,18 +64,33 @@ class UR10Dataset(torch.utils.data.Dataset):
             else:
                 self.data.append(temp)
 
-    def __getitem__(self, idx):
-        sample = []
+        self.scale = []
+        self.offset = []
         for i in range(self.num_modality):
-            x = self.data[i][idx].clone()
-            if len(x.shape) == 3:
-                x = (x.float() / 255.0 - 0.5) * 2
-            else:
-                x = x / 3.0
-                x[6] = x[6] * 30
-                x[-1] = x[-1] * 30
-            sample.append(x)
+            xmodality = self.data[i]
+            xmin = xmodality.min()
+            xmax = xmodality.max()
+            self.offset.append(xmin)
+            self.scale.append(xmax-xmin)
+
+    def __getitem__(self, idx):
+        sample = [self.data[i][idx] for i in range(self.num_modality)]
+        sample = self.normalize(sample)
         return sample
+
+    def normalize(self, x):
+        x_normed = []
+        for i, x_i in enumerate(x):
+            x_n = ((x_i.clone() - self.offset[i]) / self.scale[i]) * 2 - 1
+            x_normed.append(x_n)
+        return x_normed
+
+    def denormalize(self, x):
+        x_denormed = []
+        for i, x_i in enumerate(x):
+            x_n = (x_i.clone()*0.5+0.5) * self.scale[i] + self.offset[i]
+            x_denormed.append(x_n)
+        return x_denormed
 
     def __len__(self):
         return len(self.data[0])
@@ -91,13 +106,6 @@ class UR10Dataset(torch.utils.data.Dataset):
 
         sample = []
         begin, end = self.ranges[idx]
-        for i in range(self.num_modality):
-            x = self.data[i][begin:end].clone()
-            if len(x.shape) == 4:
-                x = (x.float() / 255.0 - 0.5) * 2
-            else:
-                x = x / 3.0
-                x[:, 6] = x[:, 6] * 30
-                x[:, -1] = x[:, -1] * 30
-            sample.append(x)
+        sample = [self.data[i][begin:end] for i in range(self.num_modality)]
+        sample = self.normalize(sample)
         return sample
