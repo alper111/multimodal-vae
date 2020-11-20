@@ -36,7 +36,8 @@ valset = data.UR10Dataset("data", modality=[args.mod, "joint"], action=["grasp",
 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts["batch_size"], shuffle=True)
 valloader = torch.utils.data.DataLoader(valset, batch_size=10000, shuffle=False)
-x_val_img, x_val_joint = iter(valloader).next()
+val_sample = iter(valloader).next()
+x_val_img, x_val_joint = trainset.normalize(valset.denormalize(val_sample))
 x_val_img = x_val_img.to(dev)
 x_val_joint = x_val_joint.to(dev)
 x_val_all = [x_val_img, x_val_joint]
