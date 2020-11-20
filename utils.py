@@ -12,10 +12,6 @@ def get_parameter_count(model):
     return total_num
 
 
-def to_pixel(x):
-    return (x*0.5+0.5)*255
-
-
 def noise_input(x, banned_modality, prob=[0.5, 0.5], direction="forward", modality_noise=False):
     N = x[0].shape[0]
     D = len(x)
@@ -56,8 +52,8 @@ def noise_input(x, banned_modality, prob=[0.5, 0.5], direction="forward", modali
             noise_mask[1, :d] = 0.
 
         noise_mask = noise_mask[alpha]
-        noise = torch.zeros_like(x_noised[-1], device=dev)
-        if len(x[i].shape) == 4:
+        noise = - 2 * torch.ones_like(x_noised[-1], device=dev)
+        if x[i].dim() == 4:
             noise_mask = noise_mask.unsqueeze(2).unsqueeze(3)
             if modality_noise:
                 modality_mask[i] = modality_mask[i].unsqueeze(2).unsqueeze(3)
