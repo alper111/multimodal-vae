@@ -81,7 +81,7 @@ class UR10Dataset(torch.utils.data.Dataset):
     def normalize(self, x):
         x_normed = []
         for i, x_i in enumerate(x):
-            x_n = ((x_i.clone() - self.offset[i]) / self.scale[i]) * 2 - 1
+            x_n = ((x_i.clone().float() - self.offset[i]) / self.scale[i]) * 2 - 1
             x_normed.append(x_n)
         return x_normed
 
