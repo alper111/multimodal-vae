@@ -4,7 +4,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 N = 5
 trajs = list(range(1, 41))
-modality = ["both", "img", "joint"]
+modality = ["both", "end", "joint"]
 T = len(trajs)
 yp_mean = np.zeros(T)
 yp_std = np.zeros(T)
@@ -52,14 +52,14 @@ for m in modality:
 
     plt.plot(trajs, yp_mean, color="b")
     plt.fill_between(trajs, yp_mean-yp_std, yp_mean+yp_std, color="b", alpha=0.2)
-    pp = PdfPages("out/yp.pdf")
+    pp = PdfPages("out/yp-%s.pdf" % m)
     pp.savefig()
     pp.close()
     plt.close()
 
     plt.plot(trajs, zp_mean, "b")
     plt.fill_between(trajs, zp_mean-zp_std, zp_mean+zp_std, color="b", alpha=0.2)
-    pp = PdfPages("out/zp.pdf")
+    pp = PdfPages("out/zp-%s.pdf" % m)
     pp.savefig()
     pp.close()
     plt.close()
@@ -69,7 +69,7 @@ for m in modality:
         for j in range(2):
             ax[i][j].plot(trajs, yj_mean[:, i*2+j], color="b")
             ax[i][j].fill_between(trajs, yj_mean[:, i*2+j]-yj_std[:, i*2+j], yj_mean[:, i*2+j]+yj_std[:, i*2+j], color="b", alpha=0.2)
-    pp = PdfPages("out/yj.pdf")
+    pp = PdfPages("out/yj-%s.pdf" % m)
     pp.savefig(fig)
     pp.close()
     plt.close()
@@ -79,7 +79,7 @@ for m in modality:
         for j in range(2):
             ax[i][j].plot(trajs, zj_mean[:, i*2+j], color="b")
             ax[i][j].fill_between(trajs, zj_mean[:, i*2+j]-zj_std[:, i*2+j], zj_mean[:, i*2+j]+zj_std[:, i*2+j], color="b", alpha=0.2)
-    pp = PdfPages("out/zj.pdf")
+    pp = PdfPages("out/zj-%s.pdf" % m)
     pp.savefig(fig)
     pp.close()
     plt.close()
