@@ -23,6 +23,7 @@ rm data2020.zip
             ...
             N.jpeg (N can be any number)
             objects.txt [N x D] matrix
+            anything.txt [N x K] matrix
         /action2 (optional)
     /2
     ...
