@@ -37,7 +37,10 @@ print(model)
 out_folder = os.path.join(opts["save"], "outs")
 if not os.path.exists(out_folder):
     os.makedirs(out_folder)
-outfile = open(os.path.join(out_folder, args.prefix+"-result.txt"), "a")
+outpath = os.path.join(out_folder, args.prefix+"-result.txt")
+if os.path.exists(outpath):
+    os.remove(outpath)
+outfile = open(outpath, "a")
 
 yje = torch.zeros(7)
 zje = torch.zeros(7)
@@ -46,8 +49,8 @@ zpe = 0.0
 
 N = 10
 
-k_step_joint = torch.zeros(N, 10, 7)
-k_step_pixel = torch.zeros(N, 10)
+k_step_joint = [[], [], [], [], [], [], [], [], [], [], []]
+k_step_pixel = [[], [], [], [], [], [], [], [], [], [], []]
 
 condition_idx = [68, 30, 60, 35, 72, 45, 61, 35, 43, 48]
 
@@ -80,6 +83,10 @@ for exp in range(N):
         x_img, x_joint = trainset.denormalize([x_img, x_joint])
         y_img, y_joint = trainset.denormalize([y_img, y_joint])
         z_img, z_joint = trainset.denormalize([z_img, z_joint])
+
+        for i in range(min(11, L-start_idx)):
+            k_step_joint[i].append((x_joint[start_idx+i, :7] - z_joint[start_idx+i, :7]).abs())
+            k_step_pixel[i].append((x_img[start_idx+i, :3] - z_img[start_idx+i, :3]).abs().mean())
 
         fig, ax = plt.subplots(3, 2, figsize=(12, 10))
         for i in range(3):
@@ -119,3 +126,13 @@ print("%.4f" % ype, file=outfile)
 print("%.4f" % zpe, file=outfile)
 print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(yje), file=outfile)
 print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(zje), file=outfile)
+
+print("    JOINT\t\t\t\tIMG", file=outfile)
+print("="*39, file=outfile)
+for i in range(11):
+    k_step_joint[i] = torch.stack(k_step_joint[i])
+    k_step_pixel[i] = torch.stack(k_step_pixel[i])
+    k_step_joint[i][:, :6] = torch.rad2deg(k_step_joint[i][:, :6])
+    print("%2d: %2.3f +- %.3f\t%.3f +- %.3f" %
+          (i, k_step_joint[i].mean(), k_step_joint[i].std(), k_step_pixel[i].mean(), k_step_pixel[i].std()),
+          file=outfile)
