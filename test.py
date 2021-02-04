@@ -20,8 +20,8 @@ args = parser.parse_args()
 opts = yaml.safe_load(open(args.opts, "r"))
 print(yaml.dump(opts))
 
-trainset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="train")
-testset = data.UR10Dataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="test")
+trainset = data.MyDataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="train")
+testset = data.MyDataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="test")
 
 model = models.MultiVAE(
     in_blocks=opts["in_blocks"],

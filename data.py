@@ -4,8 +4,13 @@ import torch
 import numpy as np
 
 
-class UR10Dataset(torch.utils.data.Dataset):
-    """UR10 dataset containing move and grasp actions."""
+class MyDataset(torch.utils.data.Dataset):
+    """
+    Dataset class for processed data.
+
+    You should first pre-process data and save it to pytorch objects.
+    See README and `prepare_data.py` for details.
+    """
 
     def __init__(self, path, modality, action, mode, traj_list=None):
         """
