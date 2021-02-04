@@ -8,10 +8,27 @@ This repository contains PyTorch implementation of the paper "Multimodal represe
 ```bash
 python get_drive_file.py 1Nn-ONccUbW1cBwm6nRhgF-zjtKoB8zO6 data2020.zip
 unzip data2020.zip
-python prepare_ur10_data.py data2020
+python prepare_data.py data2020
 rm -r data2020
 rm data2020.zip
 ```
+
+### Data folder structure
+```
+/mydataset
+    /1 (trajectory)
+        /action1 (action label)
+            0.jpeg (only jpeg for now)
+            1.jpeg
+            ...
+            N.jpeg (N can be any number)
+            objects.txt [N x D] matrix
+        /action2 (optional)
+    /2
+    ...
+    /M
+```
+
 
 ## Example opts.yaml
 ```yaml
