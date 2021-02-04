@@ -16,16 +16,23 @@ rm data2020.zip
 ### Data folder structure
 ```
 /mydataset
-    /1 (trajectory)
+    /0 (trajectory)
         /action1 (action label)
             0.jpeg (only jpeg for now)
             1.jpeg
             ...
             N.jpeg (N can be any number)
-            objects.txt [N x D] matrix
-            anything.txt [N x K] matrix
+            objects_0.txt [N x D] matrix
+            anything_0.txt [N x K] matrix
         /action2 (optional)
-    /2
+    /1
+        /action1
+            0.jpeg
+            1.jpeg
+            ...
+            P.jpeg (can be different from N above)
+            objects_1.txt [P x D] matrix
+            anything_1.txt [P x K] matrix
     ...
     /M
 ```
