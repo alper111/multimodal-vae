@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 def get_parameter_count(model):
@@ -67,3 +68,19 @@ def noise_input(x, banned_modality, prob=[0.5, 0.5], direction="forward", modali
     del noise_mask
 
     return x_noised
+
+
+def txt_to_tensor(filename):
+    file = open(filename, "r")
+    lines = file.readlines()
+    lines = [x.rstrip().split(" ") for x in lines]
+    return torch.tensor(np.array(lines, dtype=np.float), dtype=torch.float)
+
+
+def return_split(i, splits, tr, vl):
+    if i < tr:
+        return splits[0]
+    elif i < vl:
+        return splits[1]
+    else:
+        return splits[2]
