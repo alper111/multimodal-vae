@@ -50,7 +50,6 @@ sp_vl: 8  # validation split
 shuffle: false  # whether to shuffle trajectories
 ```
 
-
 ## Example opts.yml
 ```yaml
 save: save/test
@@ -80,9 +79,6 @@ out_blocks: [
 ]
 traj_count: 6
 ```
-
-## Example data.yml
-
 
 ## Train the model
 ```bash
