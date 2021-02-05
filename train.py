@@ -2,9 +2,11 @@
 import os
 import time
 import argparse
+
 import yaml
 import torch
 from torch.utils.tensorboard import SummaryWriter
+
 import models
 import data
 import utils
@@ -12,7 +14,6 @@ import utils
 
 parser = argparse.ArgumentParser("Train multimodal VAE.")
 parser.add_argument("-opts", help="option file", type=str, required=True)
-parser.add_argument("-mod", help="modality. img or endpoint.", type=str, required=True)
 args = parser.parse_args()
 
 opts = yaml.safe_load(open(args.opts, "r"))
@@ -28,19 +29,16 @@ print(yaml.dump(opts))
 logdir = os.path.join(opts["save"], "log")
 writer = SummaryWriter(logdir)
 
-idx = torch.randperm(40)[:opts["traj_count"]].tolist()
-val_cnd = [71, 40, 67, 56, 58, 56, 50, 79, 50, 53]
+idx = torch.randperm(opts["traj_count"])[:opts["traj_count"]].tolist()
 
-trainset = data.MyDataset("data", modality=[args.mod, "joint"], action=["grasp", "move"], mode="train", traj_list=idx)
-valset = data.MyDataset("data", modality=[args.mod, "joint"], action=["grasp", "move"], mode="val")
+trainset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="train", traj_list=idx)
+valset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="val")
 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts["batch_size"], shuffle=True)
 valloader = torch.utils.data.DataLoader(valset, batch_size=10000, shuffle=False)
 val_sample = iter(valloader).next()
-x_val_img, x_val_joint = trainset.normalize(valset.denormalize(val_sample))
-x_val_img = x_val_img.to(dev)
-x_val_joint = x_val_joint.to(dev)
-x_val_all = [x_val_img, x_val_joint]
+x_val = trainset.normalize(valset.denormalize(val_sample))
+x_val = [x.to(dev) for x in x_val]
 
 model = models.MultiVAE(
     in_blocks=opts["in_blocks"],
@@ -54,32 +52,31 @@ print(model)
 print("Parameter count:", utils.get_parameter_count(model))
 best_error = 1e5
 BETA = opts["beta"]
+ban_list = [0 for _ in opts["modality"]]
 
 for e in range(opts["epoch"]):
     running_avg = 0.0
-    for i, (x_img, x_joint) in enumerate(trainloader):
+    for i, x_t in enumerate(trainloader):
         optimizer.zero_grad()
-        x_img = x_img.to(dev)
-        x_joint = x_joint.to(dev)
+        x_t = [x.to(dev) for x in x_t]
 
-        x_all = [x_img, x_joint]
-        x_noised = utils.noise_input(x_all, banned_modality=[0, 0], prob=[0.5, 0.5, 0.5],
+        x_noised = utils.noise_input(x_t, banned_modality=ban_list, prob=[0.5, 0.5, 0.5],
                                      direction="both", modality_noise=True)
 
-        loss = model.loss(x_noised, x_all, lambd=opts["lambda"], beta=BETA, reduce=opts["reduce"], mse=opts["mse"])
+        loss = model.loss(x_noised, x_t, lambd=opts["lambda"], beta=BETA, reduce=opts["reduce"], mse=opts["mse"])
         loss.backward()
         optimizer.step()
         running_avg += loss.item()
-        del x_all[:], x_noised[:]
+        del x_t[:], x_noised[:]
 
     running_avg /= (i+1)
     BETA = BETA * opts["beta_decay"]
     with torch.no_grad():
-        x_val_plain = utils.noise_input(x_val_all, banned_modality=[0, 0], prob=[1.0, 0.0])
-        x_val_noised = utils.noise_input(x_val_all, banned_modality=[0, 0], prob=[0.0, 0.5, 0.5],
+        x_val_plain = utils.noise_input(x_val, banned_modality=ban_list, prob=[1.0, 0.0])
+        x_val_noised = utils.noise_input(x_val, banned_modality=ban_list, prob=[0.0, 0.5, 0.5],
                                          direction="both", modality_noise=True)
-        mse_val = model.loss(x_val_plain, x_val_all, lambd=1.0, beta=0.0, sample=False, reduce=True, mse=True)
-        mse_val_noised = model.loss(x_val_noised, x_val_all, lambd=1.0, beta=0.0, sample=False, reduce=True, mse=True)
+        mse_val = model.loss(x_val_plain, x_val, lambd=1.0, beta=0.0, sample=False, reduce=True, mse=True)
+        mse_val_noised = model.loss(x_val_noised, x_val, lambd=1.0, beta=0.0, sample=False, reduce=True, mse=True)
 
     del x_val_plain[:], x_val_noised[:]
 
