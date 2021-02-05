@@ -37,39 +37,72 @@ rm data2020.zip
     /M
 ```
 
+In order to pre-process the data and run the training script, you will need two yaml option files. Here are examples:
 
-## Example opts.yaml
+## Example data.yml
 ```yaml
-save: save/test1
+path: "mydataset"
+actions: ["action1"]
+modality: ["img", "anything", "objects"]  # first modality should be always img
+N: 10
+sp_tr: 7  # train split
+sp_vl: 8  # validation split
+shuffle: false  # whether to shuffle trajectories
+```
+
+
+## Example opts.yml
+```yaml
+save: save/test
 device: cuda
-batch_size: 32
-epoch: 100
+modality: ["img", "anything", "objects"]
+action: ["action1"]
+batch_size: 128
+epoch: 10
 lambda: 1.0
 beta: 0.0
 init_method: xavier
-lr: 0.001
+lr: 0.0005
 reduce: true
 mse: true
 beta_decay: 0.0
 in_blocks: [
-  [-2, 1024, 128, 6, 32, 64, 64, 128, 128, 256],
-  [-1, 14, 32, 64, 64, 128, 128, 256, 128]
+  [-2, 1024, 128, 6, 32, 64, 64, 128, 128, 256],  # image encoder
+  [-1, 28, 32, 64, 64, 128, 128, 256, 128],  # anything encoder
+  [-1, 16, 32, 64, 64, 128, 128, 256, 128]  # objects encoder
 ]
-in_shared: [256, 256]
-out_shared: [128, 256]
+in_shared: [384, 256]  # shared encoder
+out_shared: [128, 384]  # shared decoder
 out_blocks: [
-  [-2, 128, 1024, 256, 256, 128, 128, 64, 64, 32],
-  [-1, 128, 256, 128, 128, 64, 64, 32, 28]
+  [-2, 128, 1024, 256, 256, 128, 128, 64, 64, 32],  # image decoder
+  [-1, 128, 256, 128, 128, 64, 64, 32, 56],  # anything decoder
+  [-1, 128, 256, 128, 128, 64, 64, 32, 32]  # objects decoder
 ]
-traj_count: 40
+traj_count: 6
 ```
+
+## Example data.yml
+
 
 ## Train the model
 ```bash
-python train.py -opts opts.yaml -mod img
+python train.py -opts opts.yaml
 ```
 
 You can watch the training progress with tensorboard:
 ```bash
 tensorboard --logdir <savefolder>/log
+```
+
+## Test the model
+While testing, you can optionally ban some modalities to test accurate the model reconstructs and forecasts previous and next timesteps.
+
+Without ban:
+```bash
+python test.py -opts opts.yml -banned 0 0 0 -prefix no_ban
+```
+
+Or, ban the `objects` modality:
+```bash
+python test.py -opts opts.yml -banned 0 0 1 -prefix ban_objects
 ```
