@@ -36,6 +36,8 @@ class MyDataset(torch.utils.data.Dataset):
         self.mode = mode
         self.num_modality = len(modality)
         self.traj_list = traj_list
+        # modality dimensions
+        self.dims = []
 
         if len(action) < 2:
             self.ranges = np.load(os.path.join(path, "%s_%s_range.npy" % (action[0], mode)))
@@ -59,6 +61,7 @@ class MyDataset(torch.utils.data.Dataset):
             for a in action:
                 temp.append(torch.load(os.path.join(path, "%s_%s_%s.pt" % (a, mode, m))))
             temp = torch.cat(temp, dim=0)
+            self.dims.append(temp.shape[1] // 2)
 
             if traj_list is not None:
                 filtered = []
