@@ -199,7 +199,7 @@ class MultiVAE(torch.nn.Module):
                     # x[t] <- x[t+1]
                     x[i][:, :dims[i]] = x[i][:, dims[i]:]
 
-            x = [trajectory[0][0], trajectory[1][0]]
+            x = [trajectory[i][0] for i in range(D)]
             for _ in range(backward_t):
                 x_noised = utils.noise_input(x, banned_modality=banned_modality, prob=[0.0, 1.0], direction="backward")
                 _, _, x, _ = self.forward(x_noised, sample=False)
