@@ -80,6 +80,11 @@ out_blocks: [
 traj_count: 6
 ```
 
+## Prepare the dataset
+```bash
+python prepare_data.py -opts data.yaml
+```
+
 ## Train the model
 ```bash
 python train.py -opts opts.yaml
