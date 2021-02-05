@@ -1,7 +1,9 @@
 """MultiVAE and other models."""
-import torch
-import math
 import os
+import math
+
+import torch
+
 import utils
 
 

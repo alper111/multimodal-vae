@@ -1,11 +1,13 @@
 """Test multimodal VAE for UR10 data."""
 import os
 import argparse
+
 import yaml
 import torch
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
+
 import models
 import data
 import utils
@@ -106,7 +108,15 @@ yje = np.degrees(yje/N)
 zje = np.degrees(zje/N)
 ype = (ype/N)
 zpe = (zpe/N)
-print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], np.radians(yje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
-print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], np.radians(zje[6])/30), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
-print("onestep position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (ype[0], ype[1], ype[2], ype[3], ype[4], ype[5]), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
-print("forecast position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % (zpe[0], zpe[1], zpe[2], zpe[3], zpe[4], zpe[5]), file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("onestep joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" %
+      (yje[0], yje[1], yje[2], yje[3], yje[4], yje[5], np.radians(yje[6])/30),
+      file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("forecast joint errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" %
+      (zje[0], zje[1], zje[2], zje[3], zje[4], zje[5], np.radians(zje[6])/30),
+      file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("onestep position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" %
+      (ype[0], ype[1], ype[2], ype[3], ype[4], ype[5]),
+      file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
+print("forecast position errors: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" %
+      (zpe[0], zpe[1], zpe[2], zpe[3], zpe[4], zpe[5]),
+      file=open(os.path.join(out_folder, args.prefix+"-result.txt"), "a"))
