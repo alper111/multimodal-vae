@@ -1,12 +1,13 @@
 """Test multimodal VAE for UR10 data."""
 import os
 import argparse
+
 import yaml
 import torch
 import torchvision
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-import numpy as np
+
 import models
 import data
 import utils
@@ -20,8 +21,8 @@ args = parser.parse_args()
 opts = yaml.safe_load(open(args.opts, "r"))
 print(yaml.dump(opts))
 
-trainset = data.MyDataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="train")
-testset = data.MyDataset("data", modality=["img", "joint"], action=["grasp", "move"], mode="test")
+trainset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="train")
+testset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="test")
 
 model = models.MultiVAE(
     in_blocks=opts["in_blocks"],
@@ -42,97 +43,107 @@ if os.path.exists(outpath):
     os.remove(outpath)
 outfile = open(outpath, "a")
 
-yje = torch.zeros(7)
-zje = torch.zeros(7)
-ype = 0.0
-zpe = 0.0
 
-N = 10
+N = 2
 
-k_step_joint = [[], [], [], [], [], [], [], [], [], [], []]
-k_step_pixel = [[], [], [], [], [], [], [], [], [], [], []]
-
-condition_idx = [68, 30, 60, 35, 72, 45, 61, 35, 43, 48]
+k_step = [[[], [], [], [], [], [], [], [], [], [], []] for _ in trainset.modality]
+# condition_idx = [68, 30, 60, 35, 72, 45, 61, 35, 43, 48] nvm about this
 
 for exp in range(N):
     exp_folder = os.path.join(out_folder, str(exp))
     if not os.path.exists(exp_folder):
         os.makedirs(exp_folder)
 
-    x_img, x_joint = testset.get_trajectory(exp)
-    L = x_img.shape[0]
-    start_idx = condition_idx[exp]
+    x_test = testset.get_trajectory(exp)
+    L = x_test[0].shape[0]
+    # condition on the half-point on the trajectory
+    start_idx = L // 2
     forward_t = L - start_idx
     backward_t = start_idx
-    x_all = [x_img, x_joint]
-    xn_img, xn_joint = utils.noise_input(x_all, args.banned, prob=[0., 1.], direction="forward", modality_noise=False)
-    x_condition = [x_img[start_idx:(start_idx+1)], x_joint[start_idx:(start_idx+1)]]
+    x_noised = utils.noise_input(x_test, args.banned, prob=[0., 1.], direction="forward", modality_noise=False)
+    x_condition = [x[start_idx:(start_idx+1)] for x in x_noised]
     # x[t+1] <- x[t]
-    x_condition[0][:, 3:] = x_condition[0][:, :3]
-    x_condition[1][:, 7:] = x_condition[1][:, :7]
+    for i, dim in enumerate(trainset.dims):
+        x_condition[i][:, dim:] = x_condition[i][:, :dim]
 
     with torch.no_grad():
         # one-step forward prediction
-        _, _, (y_img, y_joint), _ = model([xn_img, xn_joint], sample=False)
+        _, _, y_onestep, _ = model(x_noised, sample=False)
 
         # forecasting
-        z_img, z_joint = model.forecast(x_condition, forward_t, backward_t, banned_modality=args.banned)
+        y_forecast = model.forecast(x_condition, forward_t, backward_t, banned_modality=args.banned)
 
-        y_img.clamp_(-1., 1.)
-        z_img.clamp_(-1., 1.)
-        x_img, x_joint = trainset.denormalize([x_img, x_joint])
-        y_img, y_joint = trainset.denormalize([y_img, y_joint])
-        z_img, z_joint = trainset.denormalize([z_img, z_joint])
+        # clamp to limits
+        for y_i in y_onestep:
+            y_i.clamp_(-1., 1.)
+        for y_i in y_forecast:
+            y_i.clamp_(-1., 1.)
 
-        for i in range(min(11, L-start_idx)):
-            k_step_joint[i].append((x_joint[start_idx+i, :7] - z_joint[start_idx+i, :7]).abs())
-            k_step_pixel[i].append((x_img[start_idx+i, :3] - z_img[start_idx+i, :3]).abs().mean())
+        x_test = trainset.denormalize(x_test)
+        y_onestep = trainset.denormalize(y_onestep)
+        y_forecast = trainset.denormalize(y_forecast)
 
-        fig, ax = plt.subplots(3, 2, figsize=(12, 10))
-        for i in range(3):
-            for j in range(2):
-                ax[i][j].plot(y_joint[:, i*2 + j + 7], c="b")
-                ax[i][j].plot(x_joint[:, i*2 + j + 7], c="k")
-                ax[i][j].plot(z_joint[:, i*2 + j + 7], c="m")
-                ax[i][j].scatter(start_idx-1, x_joint[start_idx-1, i*2 + j + 7], c="r", marker="x")
-                ax[i][j].set_ylabel("$q_%d$" % (i*2+j))
-                ax[i][j].set_xlabel("Timesteps")
-        pp = PdfPages(os.path.join(exp_folder, args.prefix+"-joints.pdf"))
-        pp.savefig(fig)
-        pp.close()
+        for i, dim in enumerate(trainset.dims):
+            # error at k-step prediction instead of one-step.
+            # As k increases, models prediction performance drops dramatically
+            # due to cascading error. This is not the case with CNMP since
+            # we query each point independently, so the error does not accumulate.
+            for k in range(min(11, L-start_idx)):
+                diff = (x_test[i][start_idx+k, :dim] - y_forecast[i][start_idx+k, :dim]).abs()
+                # for the img modality, average out pixels
+                if i == 0:
+                    diff = diff.mean()
+                k_step[i][k].append(diff)
 
-        yje += ((x_joint[:, 7:] - y_joint[:, 7:])).abs().mean(dim=0)
-        zje += ((x_joint[:, 7:] - z_joint[:, 7:])).abs().mean(dim=0)
+            # plot the error for each dimension of each modality (other than img)
+            if i != 0:
+                for j in range(dim):
+                    plt.plot(x_test[i][:, j+dim], c="k", label="Truth")
+                    plt.plot(y_onestep[i][:, j+dim], c="b", label="One-step")
+                    plt.plot(y_forecast[i][:, j+dim], c="m", label="Forecast")
+                    plt.scatter(start_idx-1, x_test[i][start_idx-1, j+dim], c="r", marker="x", label="Condition point")
+                    plt.ylabel("$q_%d$" % (j))
+                    plt.xlabel("$t$")
+                    plt.legend()
+                    # save to pdf
+                    temp_path = os.path.join(exp_folder, args.prefix+("%d-%s.pdf" % (j, trainset.modality[i])))
+                    pp = PdfPages(temp_path)
+                    pp.savefig()
+                    pp.close()
+                    plt.close()
 
-        y_pixel_error = (x_img[:, 3:] - y_img[:, 3:]).abs().mean()
-        z_pixel_error = (x_img[:, 3:] - z_img[:, 3:]).abs().mean()
-        ype += y_pixel_error
-        zpe += z_pixel_error
-        print("%.4f, %.4f" % (y_pixel_error, z_pixel_error), file=outfile)
+            # calculate mean abs. error for each dimension of each modality (other than img)
+            err_onestep = (x_test[i][:, dim:] - y_onestep[i][:, dim:]).abs().mean(dim=0)
+            err_forecast = (x_test[i][:, dim:] - y_forecast[i][:, dim:]).abs().mean(dim=0)
+            # avg over channels, height, and width if it's image
+            print("%s modality error" % trainset.modality[i], file=outfile)
+            if i == 0:
+                err_onestep = err_onestep.mean()
+                err_forecast = err_forecast.mean()
+                print("onestep error: %.4f" % err_onestep, file=outfile)
+                print("forecast error: %.4f" % err_forecast, file=outfile)
+            else:
+                formatted = ", ".join(["%.4f" for _ in range(dim)])
+                print("onestep error: " + (formatted % tuple(err_onestep)), file=outfile)
+                print("forecast error: " + (formatted % tuple(err_onestep)), file=outfile)
 
-        x_cat = torch.cat([x_img[:, 3:], y_img[:, 3:]], dim=3).permute(0, 2, 3, 1)
+            print("k-step error", file=outfile)
+            for k in range(11):
+                print("k=%d" % k, file=outfile)
+                err = k_step[i][k][0]
+                if i == 0:
+                    print("%.4f" % err, file=outfile)
+                else:
+                    formatted = ", ".join(["%.4f" for _ in range(dim)])
+                    print(formatted % tuple(err), file=outfile)
+
+        # record image trajectory as a video
+        # concat real and predicted video in the width dimension
+        # and permute to [time, height, width, channel] to save the video
+        x_cat = torch.cat([x_test[0][:, 3:], y_onestep[0][:, 3:]], dim=3).permute(0, 2, 3, 1)
         torchvision.io.write_video(os.path.join(exp_folder, args.prefix+"-onestep.mp4"), x_cat.byte(), fps=30)
-        x_cat = torch.cat([x_img[:, 3:], z_img[:, 3:]], dim=3).permute(0, 2, 3, 1)
+        x_cat = torch.cat([x_test[0][:, 3:], y_forecast[0][:, 3:]], dim=3).permute(0, 2, 3, 1)
         torchvision.io.write_video(os.path.join(exp_folder, args.prefix+"-forecast.mp4"), x_cat.byte(), fps=30)
-        x_diff = (x_img[:, 3:] - z_img[:, 3:]).abs().permute(0, 2, 3, 1)
+        # difference video. This should be all black if the model predicts perfectly.
+        x_diff = (x_test[0][:, 3:] - y_forecast[0][:, 3:]).abs().permute(0, 2, 3, 1)
         torchvision.io.write_video(os.path.join(exp_folder, args.prefix+"-diff.mp4"), x_diff.byte(), fps=30)
-
-yje[:6] = np.degrees(yje[:6] / N)
-zje[:6] = np.degrees(zje[:6] / N)
-ype = ype / N
-zpe = zpe / N
-
-print("%.4f" % ype, file=outfile)
-print("%.4f" % zpe, file=outfile)
-print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(yje), file=outfile)
-print("%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(zje), file=outfile)
-
-print("    JOINT\t\t\t\tIMG", file=outfile)
-print("="*39, file=outfile)
-for i in range(11):
-    k_step_joint[i] = torch.stack(k_step_joint[i])
-    k_step_pixel[i] = torch.stack(k_step_pixel[i])
-    k_step_joint[i][:, :6] = torch.rad2deg(k_step_joint[i][:, :6])
-    print("%2d: %2.3f +- %.3f\t%.3f +- %.3f" %
-          (i, k_step_joint[i].mean(), k_step_joint[i].std(), k_step_pixel[i].mean(), k_step_pixel[i].std()),
-          file=outfile)
