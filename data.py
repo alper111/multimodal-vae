@@ -80,11 +80,10 @@ class MyDataset(torch.utils.data.Dataset):
             xmin = xmodality.min()
             xmax = xmodality.max()
             self.offset.append(xmin)
-            self.scale.append(xmax-xmin)
+            self.scale.append(xmax-xmin+(1e-6))
 
     def __getitem__(self, idx):
         sample = [self.data[i][idx] for i in range(self.num_modality)]
-        sample = self.normalize(sample)
         return sample
 
     def normalize(self, x):
@@ -116,5 +115,4 @@ class MyDataset(torch.utils.data.Dataset):
         sample = []
         begin, end = self.ranges[idx]
         sample = [self.data[i][begin:end] for i in range(self.num_modality)]
-        sample = self.normalize(sample)
         return sample

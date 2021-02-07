@@ -37,7 +37,7 @@ valset = data.MyDataset("data", modality=opts["modality"], action=opts["action"]
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts["batch_size"], shuffle=True)
 valloader = torch.utils.data.DataLoader(valset, batch_size=10000, shuffle=False)
 val_sample = iter(valloader).next()
-x_val = trainset.normalize(valset.denormalize(val_sample))
+x_val = trainset.normalize(val_sample)
 x_val = [x.to(dev) for x in x_val]
 
 model = models.MultiVAE(
@@ -59,6 +59,7 @@ for e in range(opts["epoch"]):
     for i, x_t in enumerate(trainloader):
         optimizer.zero_grad()
         x_t = [x.to(dev) for x in x_t]
+        x_t = trainset.normalize(x_t)
 
         x_noised = utils.noise_input(x_t, banned_modality=ban_list, prob=[0.5, 0.5, 0.5],
                                      direction="both", modality_noise=True)

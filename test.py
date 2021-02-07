@@ -55,6 +55,7 @@ for exp in range(N):
         os.makedirs(exp_folder)
 
     x_test = testset.get_trajectory(exp)
+    x_test = trainset.normalize(x_test)
     L = x_test[0].shape[0]
     # condition on the half-point on the trajectory
     start_idx = L // 2
