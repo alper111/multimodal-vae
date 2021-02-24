@@ -8,7 +8,8 @@ This repository contains PyTorch implementation of the paper "Multimodal represe
 ```bash
 python get_drive_file.py 1Nn-ONccUbW1cBwm6nRhgF-zjtKoB8zO6 data2020.zip
 unzip data2020.zip
-python prepare_data.py data2020
+# see data.yml definition below
+python prepare_data.py -opts data.yml
 rm -r data2020
 rm data2020.zip
 ```
