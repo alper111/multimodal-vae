@@ -60,18 +60,17 @@ for it, action in enumerate(opts["actions"]):
             else:
                 assert TRAJ_LENGTH == x_cat.shape[0], "Modalities are not of same length!"
 
-        data_dict[action][split]["range"].append([action_iters[it], action_iters[it]+x_cat.shape[0]])
-        action_iters[it] += x_cat.shape[0]
+        data_dict[action][split]["range"].append([action_iters[it], action_iters[it]+TRAJ_LENGTH])
+        action_iters[it] += TRAJ_LENGTH
 
         # save images
         img_t = torch.tensor(plt.imread(os.path.join(action_path, "0.jpeg")), dtype=torch.uint8)
-        for j in range(1, TRAJ_LENGTH):
+        for j in range(1, TRAJ_LENGTH+1):
             img_tnext = torch.tensor(plt.imread(os.path.join(action_path, "%d.jpeg" % j)), dtype=torch.uint8)
             tensor_cat = torch.cat([img_t, img_tnext], dim=2)
             split = utils.return_split(i, splits, opts["sp_tr"], opts["sp_vl"])
             data_dict[action][split][opts["modality"][0]].append(tensor_cat)
             img_t = img_tnext.clone()
-
 
 for action in opts["actions"]:
     for s in splits:
