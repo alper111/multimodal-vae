@@ -46,23 +46,32 @@ for it, action in enumerate(opts["actions"]):
         if ".DS_Store" in imgs:
             imgs.remove(".DS_Store")
 
-        # save images
-        img_t = torch.tensor(plt.imread(os.path.join(action_path, "0.jpeg")), dtype=torch.uint8)
-        for j in range(1, len(imgs)):
-            img_tnext = torch.tensor(plt.imread(os.path.join(action_path, "%d.jpeg" % j)), dtype=torch.uint8)
-            tensor_cat = torch.cat([img_t, img_tnext], dim=2)
-            split = utils.return_split(i, splits, opts["sp_tr"], opts["sp_vl"])
-            data_dict[action][split][opts["modality"][0]].append(tensor_cat)
-            img_t = img_tnext.clone()
-
+        TRAJ_LENGTH = None
         # save other modalities
         for mod in opts["modality"][1:]:
             x = utils.txt_to_tensor(os.path.join(action_path, "%s_%d.txt" % (mod, idx)))
             x_cat = torch.cat([x[:-1], x[1:]], dim=1)
             split = utils.return_split(i, splits, opts["sp_tr"], opts["sp_vl"])
             data_dict[action][split][mod].append(x_cat)
+
+            # make sure that the trajectory lengths are the same
+            if TRAJ_LENGTH is None:
+                TRAJ_LENGTH = x_cat.shape[0]
+            else:
+                assert TRAJ_LENGTH == x_cat.shape[0], "Modalities are not of same length!"
+
         data_dict[action][split]["range"].append([action_iters[it], action_iters[it]+x_cat.shape[0]])
         action_iters[it] += x_cat.shape[0]
+
+        # save images
+        img_t = torch.tensor(plt.imread(os.path.join(action_path, "0.jpeg")), dtype=torch.uint8)
+        for j in range(1, TRAJ_LENGTH):
+            img_tnext = torch.tensor(plt.imread(os.path.join(action_path, "%d.jpeg" % j)), dtype=torch.uint8)
+            tensor_cat = torch.cat([img_t, img_tnext], dim=2)
+            split = utils.return_split(i, splits, opts["sp_tr"], opts["sp_vl"])
+            data_dict[action][split][opts["modality"][0]].append(tensor_cat)
+            img_t = img_tnext.clone()
+
 
 for action in opts["actions"]:
     for s in splits:
