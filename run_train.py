@@ -3,13 +3,16 @@ import sys
 
 import yaml
 
-sizes = list(range(1, 41))
+sizes = [1, 2, 4, 8, 10, 15, 20, 30, 40]
 N = int(sys.argv[1])
 for s in sizes:
     file = open(os.path.join("opts-trainjob-%d.yml" % N), "w")
     opts = {}
     opts["save"] = "save/imgjoint-%d-%d" % (s, N)
+    opts["data"] = "data"
     opts["device"] = "cuda"
+    opts["modality"] = ["img", "joint"]
+    opts["action"] = ["grasp", "move"]
     opts["batch_size"] = 128
     opts["epoch"] = 200
     opts["lambda"] = 1.0
@@ -33,7 +36,7 @@ for s in sizes:
     yaml.dump(opts, file)
     file.close()
     print("Started training with %d trajectories, #%d" % (s, N))
-    os.system("python train.py -opts opts-trainjob-%d.yml -mod img" % N)
+    os.system("python train.py -opts opts-trainjob-%d.yml" % N)
     os.system("python test.py -opts save/imgjoint-%d-%d/opts.yaml -banned 0 0 -prefix both" % (s, N))
-    os.system("python test.py -opts save/imgjoint-%d-%d/opts.yaml -banned 0 1 -prefix end" % (s, N))
+    os.system("python test.py -opts save/imgjoint-%d-%d/opts.yaml -banned 0 1 -prefix img" % (s, N))
     os.system("python test.py -opts save/imgjoint-%d-%d/opts.yaml -banned 1 0 -prefix joint" % (s, N))
