@@ -31,8 +31,8 @@ writer = SummaryWriter(logdir)
 
 idx = torch.randperm(opts["traj_count"])[:opts["traj_count"]].tolist()
 
-trainset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="train", traj_list=idx)
-valset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="val")
+trainset = data.MyDataset(opts["data"], modality=opts["modality"], action=opts["action"], mode="train", traj_list=idx)
+valset = data.MyDataset(opts["data"], modality=opts["modality"], action=opts["action"], mode="val")
 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=opts["batch_size"], shuffle=True)
 valloader = torch.utils.data.DataLoader(valset, batch_size=10000, shuffle=False)

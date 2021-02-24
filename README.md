@@ -54,6 +54,7 @@ shuffle: false  # whether to shuffle trajectories
 ## Example opts.yml
 ```yaml
 save: save/test
+data: data_folder_path
 device: cuda
 modality: ["img", "anything", "objects"]
 action: ["action1"]

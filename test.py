@@ -21,8 +21,8 @@ args = parser.parse_args()
 opts = yaml.safe_load(open(args.opts, "r"))
 print(yaml.dump(opts))
 
-trainset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="train")
-testset = data.MyDataset("data", modality=opts["modality"], action=opts["action"], mode="test")
+trainset = data.MyDataset(opts["data"], modality=opts["modality"], action=opts["action"], mode="train")
+testset = data.MyDataset(opts["data"], modality=opts["modality"], action=opts["action"], mode="test")
 
 model = models.MultiVAE(
     in_blocks=opts["in_blocks"],
@@ -44,10 +44,10 @@ if os.path.exists(outpath):
 outfile = open(outpath, "a")
 
 
-N = 2
+N = 10
 
 k_step = [[[], [], [], [], [], [], [], [], [], [], []] for _ in trainset.modality]
-# condition_idx = [68, 30, 60, 35, 72, 45, 61, 35, 43, 48] nvm about this
+condition_idx = [68, 30, 60, 35, 72, 45, 61, 35, 43, 48]  # nvm about this
 
 for exp in range(N):
     exp_folder = os.path.join(out_folder, str(exp))
@@ -58,7 +58,8 @@ for exp in range(N):
     x_test = trainset.normalize(x_test)
     L = x_test[0].shape[0]
     # condition on the half-point on the trajectory
-    start_idx = L // 2
+    # start_idx = L // 2
+    start_idx = condition_idx[exp]
     forward_t = L - start_idx
     backward_t = start_idx
     x_noised = utils.noise_input(x_test, args.banned, prob=[0., 1.], direction="forward", modality_noise=False)
@@ -107,7 +108,7 @@ for exp in range(N):
                     plt.xlabel("$t$")
                     plt.legend()
                     # save to pdf
-                    temp_path = os.path.join(exp_folder, args.prefix+("%d-%s.pdf" % (j, trainset.modality[i])))
+                    temp_path = os.path.join(exp_folder, args.prefix+("-%s-%d.pdf" % (trainset.modality[i], j)))
                     pp = PdfPages(temp_path)
                     pp.savefig()
                     pp.close()
