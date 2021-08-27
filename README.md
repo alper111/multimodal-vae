@@ -1,6 +1,6 @@
 # Multimodal VAE - PyTorch
 
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/5a7dc413c50e47b58350982f1c9d3d07)](https://app.codacy.com/gh/alper111/multimodal-vae?utm_source=github.com&utm_medium=referral&utm_content=alper111/multimodal-vae&utm_campaign=Badge_Grade)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/bc54bed0d2404f94977bc3f92bee5521)](https://www.codacy.com/gh/alper111/multimodal-vae/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=alper111/multimodal-vae&amp;utm_campaign=Badge_Grade)
 
 This repository contains PyTorch implementation of the paper "Multimodal representation models for prediction and control from partial information".
 
